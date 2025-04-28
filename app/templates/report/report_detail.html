@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>작업 리포트 상세보기</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script>
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+      const content = document.querySelector('.container');
+      doc.html(content, {
+        callback: function (doc) {
+          doc.save('report.pdf');
+        },
+        x: 10,
+        y: 10
+      });
+    }
+  </script>
+</head>
+<body>
+  {% include 'layout/header.html' %}
+
+  <div class="container" id="reportContent">
+    {% if report_type == 'msp' %}
+  <div class="section">
+    <h2>기본 정보</h2>
+    <p><strong>담당자:</strong> {{ report.manager }}</p>
+    <p><strong>요청일자:</strong> {{ report.request_date.strftime('%Y-%m-%d') if report.request_date }}</p>
+    <p><strong>요청시간:</strong> {{ report.request_date.strftime('%H:%M') if report.request_date }}</p>
+    <p><strong>요청상태:</strong> {{ report.status }}</p>
+    <p><strong>완료일자:</strong> {{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}</p>
+    <p><strong>완료시간:</strong> {{ report.completed_date.strftime('%H:%M') if report.completed_date }}</p>
+  </div>
+
+  <div class="section">
+    <h2>고객 및 시스템 정보</h2>
+    <p><strong>요청자:</strong> {{ report.requester }}</p>
+    <p><strong>고객사:</strong> {{ report.client_name }}</p>
+    <p><strong>대상시스템/환경:</strong> {{ report.target_env }}</p>
+    <p><strong>시스템명:</strong> {{ report.system_name }}</p>
+    <p><strong>요청유형:</strong> {{ report.request_type }}</p>
+  </div>
+
+  <div class="section">
+    <h2>요청 내용 및 응답</h2>
+    <p><strong>요청내용:</strong><br>{{ report.request_content }}</p>
+    <p><strong>참고사항:</strong><br>{{ report.etc }}</p>
+    <p><strong>답변내용:</strong><br>{{ report.response }}</p>
+  </div>
+{% elif report_type == 'error' %}
+  <div class="section">
+    <h2>기본 정보</h2>
+    <p><strong>담당자:</strong> {{ report.manager }}</p>
+    <p><strong>장애일자:</strong> {{ report.error_start_date.strftime('%Y-%m-%d') if report.error_start_date }}</p>
+    <p><strong>장애시간:</strong> {{ report.error_start_date.strftime('%H:%M') if report.error_start_date }}</p>
+    <p><strong>장애상태:</strong> {{ report.status }}</p>
+    <p><strong>복구일자:</strong> {{ report.error_end_date.strftime('%Y-%m-%d') if report.error_end_date }}</p>
+    <p><strong>복구시간:</strong> {{ report.error_end_date.strftime('%H:%M') if report.error_end_date }}</p>
+  </div>
+
+  <div class="section">
+    <h2>고객 및 시스템 정보</h2>
+    <p><strong>고객사:</strong> {{ report.client_name }}</p>
+    <p><strong>시스템명:</strong> {{ report.system_name }}</p>
+    <p><strong>대상시스템/환경:</strong> {{ report.target_env }}</p>
+    <p><strong>장애대상:</strong> {{ report.target_component }}</p>
+  </div>
+
+  <div class="section">
+    <h2>장애 내용 및 조치</h2>
+    <p><strong>고객 영향:</strong><br>{{ report.customer_impact }}</p>
+    <p><strong>장애 내용:</strong><br>{{ report.error_info }}</p>
+    <p><strong>장애 원인:</strong><br>{{ report.error_reason }}</p>
+    <p><strong>조치 내용:</strong><br>{{ report.action_taken }}</p>
+    <p><strong>기타 사항:</strong><br>{{ report.etc }}</p>
+  </div>
+{% elif report_type == 'log' %}
+  <div class="section">
+    <h2>기본 정보</h2>
+    <p><strong>담당자:</strong> {{ report.manager }}</p>
+    <p><strong>일자:</strong> {{ report.log_date.strftime('%Y-%m-%d') if report.log_date }}</p>
+    <p><strong>시간:</strong> {{ report.log_date.strftime('%H:%M') if report.log_date }}</p>
+    <p><strong>요청상태:</strong> {{ report.status }}</p>
+    <p><strong>완료일자:</strong> {{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}</p>
+    <p><strong>완료시간:</strong> {{ report.completed_date.strftime('%H:%M') if report.completed_date }}</p>
+  </div>
+
+  <div class="section">
+    <h2>고객 및 시스템 정보</h2>
+    <p><strong>고객사:</strong> {{ report.client_name }}</p>
+    <p><strong>시스템명:</strong> {{ report.system_name }}</p>
+    <p><strong>대상시스템/환경:</strong> {{ report.target_env }}</p>
+    <p><strong>유형:</strong> {{ report.log_type }}</p>
+  </div>
+
+  <div class="section">
+    <h2>로그 내용 및 조치</h2>
+    <p><strong>내용:</strong><br>{{ report.content }}</p>
+    <p><strong>조치 내용:</strong><br>{{ report.action }}</p>
+    <p><strong>요약:</strong><br>{{ report.summary }}</p>
+    <p><strong>특이:</strong><br>{{ report.etc }}</p>
+  </div>
+{% endif %}
+
+
+    <div class="button-group">
+      <button onclick="window.history.back()">뒤로</button>
+      <button onclick="downloadPDF()">pdf 다운로드</button>
+    </div>
+  </div>
+</body>
+</html>

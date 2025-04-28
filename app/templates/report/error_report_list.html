@@ -1,0 +1,150 @@
+<!-- app/templates/report/error_report_list.html -->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>장애 리포트 목록</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script>
+    function toggleFilter() {
+      const filter = document.getElementById('filter-section');
+      filter.style.display = filter.style.display === 'none' ? 'block' : 'none';
+    }
+  </script>
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  <div class="container">
+    <div class="section">
+      <h2>장애 리포트 목록</h2>
+
+      <div class="filter-bar">
+        <input type="text" placeholder="통합 검색">
+        <button onclick="toggleFilter()">필터링</button>
+      </div>
+
+      <div id="filter-section" style="display: none; margin-top: 10px;">
+        <div class="form-row">
+          <div>
+            <label>장애일자:</label>
+            <input type="date" name="start_date">
+          </div>
+          <div>
+            <label style="visibility: hidden;">~</label>
+            <input type="date" name="end_date">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label>고객사:</label>
+            <select name="client_name">
+              <option>전체</option>
+              <!-- 동적으로 옵션 추가 가능 -->
+            </select>
+          </div>
+          <div>
+            <label>시스템명:</label>
+            <select name="system_name">
+              <option>전체</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div>
+            <label>상태:</label>
+            <select name="status">
+              <option>전체</option>
+              <option>대기</option>
+              <option>진행 중</option>
+              <option>완료</option>
+            </select>
+          </div>
+          <div>
+            <label>담당자:</label>
+            <select name="manager">
+              <option>전체</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button>검색</button>
+          <button>초기화</button>
+        </div>
+      </div>
+
+      <table class="table">
+        <thead>
+          <tr>
+            <th>장애일자</th>
+            <th>장애시간</th>
+            <th>고객사</th>
+            <th>시스템명</th>
+            <th>장애대상</th>
+            <th>상태</th>
+            <th>담당자</th>
+            <th>장애내용</th>
+          </tr>
+        </thead>
+        <tbody>
+            {% for report in reports %}
+            <tr>
+              <td>
+                <a href="/report/{{ report.report_id }}?type=error">
+                  {{ report.error_start_date.strftime('%Y-%m-%d') if report.error_start_date }}
+                </a>
+              </td>
+              <td>{{ report.error_start_date.strftime('%H:%M') if report.error_start_date }}</td>
+              <td>{{ report.client_name }}</td>
+              <td>{{ report.system_name }}</td>
+              <td>{{ report.target_component }}</td>
+              <td>{{ report.status }}</td>
+              <td>{{ report.manager }}</td>
+              <td>{{ report.error_info }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          
+      </table>
+
+      <div class="pagination">
+        {% if page > 1 %}
+          <a href="?page=1">&laquo;</a>
+          <a href="?page={{ page - 1 }}">&lsaquo;</a>
+        {% endif %}
+        {% for p in range(start_page, end_page + 1) %}
+          {% if p == page %}
+            <span class="current">{{ p }}</span>
+          {% else %}
+            <a href="?page={{ p }}">{{ p }}</a>
+          {% endif %}
+        {% endfor %}
+        {% if page < total_pages %}
+          <a href="?page={{ page + 1 }}">&rsaquo;</a>
+          <a href="?page={{ total_pages }}">&raquo;</a>
+        {% endif %}
+      </div>
+
+      <div class="download-link">
+        <button onclick="toggleDownload()" class="csv-download-btn">CSV 다운로드</button>
+        <form method="get" action="/error_reports/download" id="download-form" style="display: none; margin-top: 10px;">
+          <input type="date" name="start_date" required>
+          <span>~</span>
+          <input type="date" name="end_date" required>
+          <button type="submit" class="csv-download-btn">다운로드</button>
+        </form>
+      </div>
+
+      <script>
+        function toggleDownload() {
+          const form = document.getElementById('download-form');
+          form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+        }
+      </script>
+      
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>일지 등록</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  <div class="container">
+    <h1>일지 등록</h1>
+    <form method="post" action="/log/submit">
+      <div class="section">
+        <h2>기본 정보</h2>
+        <div class="form-row">
+          <label>담당자*</label><input type="text" name="manager">
+          <label>상태</label>
+          <select name="status">
+            <option value="대기">대기</option>
+            <option value="진행 중">진행 중</option>
+            <option value="완료">완료</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>작성일자*</label><input type="date" name="log_date">
+          <label>작성시간*</label><input type="time" name="log_time">
+        </div>
+        <div class="form-row">
+          <label>완료일자</label><input type="date" name="completed_date">
+          <label>완료시간</label><input type="time" name="completed_time">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>고객 및 시스템 정보</h2>
+        <div class="form-row">
+          <label>고객사*</label><input type="text" name="client_name">
+          <label>시스템명*</label><input type="text" name="system_name">
+        </div>
+        <div class="form-row">
+          <label>대상 시스템/환경</label><input type="text" name="target_env">
+          <label>유형*</label><input type="text" name="log_type">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>상세 정보</h2>
+        <div class="form-row">
+          <label>작업내용*</label><textarea name="content"></textarea>
+        </div>
+        <div class="form-row">
+          <label>조치내용</label><textarea name="action"></textarea>
+        </div>
+        <div class="form-row">
+          <label>요약</label><textarea name="summary"></textarea>
+        </div>
+        <div class="form-row">
+          <label>특이사항</label><textarea name="etc"></textarea>
+        </div>
+      </div>
+
+      <div class="button-group">
+        <button type="submit">완료</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

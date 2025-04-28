@@ -1,0 +1,445 @@
+from fastapi import FastAPI, Form, Request, Depends, HTTPException, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from fastapi import APIRouter, Request, Depends
+from sqlalchemy.orm import Session
+from app.database import get_db
+from app.models.models import Report, ErrorReport, MspReport, LogReport
+from fastapi.templating import Jinja2Templates
+from math import ceil
+from datetime import datetime
+import io
+import csv
+
+router = APIRouter()
+templates = Jinja2Templates(directory="app/templates")
+
+app = FastAPI()
+
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
+app.include_router(router)
+
+@app.get("/", response_class=HTMLResponse)
+def read_root(request: Request):
+    return templates.TemplateResponse("main.html", {"request": request})
+
+@app.get("/msp", response_class=HTMLResponse)
+async def msp_page(request: Request):
+    return templates.TemplateResponse("report/msp.html", {"request": request})
+
+@app.get("/error", response_class=HTMLResponse)
+async def error_page(request: Request):
+    return templates.TemplateResponse("report/error.html", {"request": request})
+
+@app.get("/log", response_class=HTMLResponse)
+async def log_page(request: Request):
+    return templates.TemplateResponse("report/log.html", {"request": request})
+
+@app.get("/reports", response_class=HTMLResponse)
+def report_list(request: Request, page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    offset = (page - 1) * limit
+    total = db.query(MspReport).count()
+    total_pages = ceil(total / limit)
+
+    # 최대 5개의 페이징 번호만 표시
+    start_page = max(1, page - 2)
+    end_page = min(start_page + 4, total_pages)
+    start_page = max(1, end_page - 4)  # 끝 범위로 인해 start_page가 다시 줄어들 수 있음
+
+    reports = db.query(MspReport)\
+                .order_by(MspReport.request_date.desc())\
+                .offset(offset).limit(limit).all()
+
+    return templates.TemplateResponse("report/report_list.html", {
+        "request": request,
+        "reports": reports,
+        "page": page,
+        "total_pages": total_pages,
+        "start_page": start_page,
+        "end_page": end_page
+    })
+
+
+
+
+
+@app.get("/report/{report_id}", response_class=HTMLResponse)
+def report_detail_page(request: Request, report_id: int, db: Session = Depends(get_db)):
+    report_entry = db.query(Report).filter(Report.report_id == report_id).first()
+    if not report_entry:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    report_type = report_entry.report_type
+    if report_type == "msp":
+        report = db.query(MspReport).filter(MspReport.report_id == report_id).first()
+    elif report_type == "error":
+        report = db.query(ErrorReport).filter(ErrorReport.report_id == report_id).first()
+    elif report_type == "log":
+        report = db.query(LogReport).filter(LogReport.report_id == report_id).first()
+    else:
+        raise HTTPException(status_code=400, detail="Invalid report type")
+
+    if not report:
+        raise HTTPException(status_code=404, detail="Detailed report not found")
+
+    return templates.TemplateResponse("report/report_detail.html", {
+        "request": request,
+        "report_type": report_type,
+        "report": report
+    })
+
+
+
+
+
+@app.post("/msp/submit")
+async def submit_msp(
+    request: Request,
+    manager: str = Form(...),
+    request_date: str = Form(...),
+    request_time: str = Form(...),
+    completed_date: str = Form(None),
+    completed_time: str = Form(None),
+    client_name: str = Form(...),
+    system_name: str = Form(...),
+    target_env: str = Form(None),
+    requester: str = Form(...),
+    request_type: str = Form(...),
+    request_content: str = Form(None),
+    purpose: str = Form(None),
+    response: str = Form(None),
+    etc: str = Form(None),
+    status: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    # 날짜+시간 합치기
+    request_datetime = datetime.strptime(f"{request_date} {request_time}", "%Y-%m-%d %H:%M")
+    completed_datetime = None
+    if completed_date and completed_time:
+        completed_datetime = datetime.strptime(f"{completed_date} {completed_time}", "%Y-%m-%d %H:%M")
+
+    # 1. report 테이블 insert
+    report = Report(
+        create_by=1,  # TODO: 로그인한 사용자 ID로 수정
+        report_type="msp",
+        created_at=datetime.now()
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    # 2. msp_report 테이블 insert
+    msp_report = MspReport(
+        report_id=report.report_id,
+        manager=manager,
+        request_date=request_datetime,
+        completed_date=completed_datetime,
+        client_name=client_name,
+        system_name=system_name,
+        target_env=target_env,
+        requester=requester,
+        request_type=request_type,
+        request_content=request_content,
+        purpose=purpose,
+        response=response,
+        etc=etc,
+        status=status
+    )
+    db.add(msp_report)
+    db.commit()
+
+    return RedirectResponse(url="/msp", status_code=303)
+
+
+@app.post("/error/submit")
+async def submit_error(
+    request: Request,
+    manager: str = Form(...),
+    status: str = Form(None),
+    error_start_date: str = Form(...),
+    start_time: str = Form(...),
+    error_end_date: str = Form(None),
+    end_time: str = Form(None),
+    client_name: str = Form(...),
+    system_name: str = Form(...),
+    target_env: str = Form(None),
+    target_component: str = Form(None),
+    customer_impact: str = Form(None),
+    error_info: str = Form(...),
+    error_reason: str = Form(None),
+    action_taken: str = Form(None),
+    etc: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    # 1. report 테이블에 insert
+    report = Report(
+        create_by=1,  # TODO: 로그인 사용자로 교체
+        report_type="error",
+        created_at=datetime.now()
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    # 2. 장애 시작일+시간 합치기
+    error_start_dt = None
+    if error_start_date and start_time:
+        error_start_dt = datetime.strptime(f"{error_start_date} {start_time}", "%Y-%m-%d %H:%M")
+
+    # 3. 장애 종료일+시간 합치기
+    error_end_dt = None
+    if error_end_date and end_time:
+        error_end_dt = datetime.strptime(f"{error_end_date} {end_time}", "%Y-%m-%d %H:%M")
+
+    # 4. error_report 테이블에 insert
+    error_report = ErrorReport(
+        report_id=report.report_id,
+        manager=manager,
+        status=status,
+        error_start_date=error_start_dt,
+        error_end_date=error_end_dt,
+        client_name=client_name,
+        system_name=system_name,
+        target_env=target_env,
+        target_component=target_component,
+        customer_impact=customer_impact,
+        error_info=error_info,
+        error_reason=error_reason,
+        action_taken=action_taken,
+        etc=etc
+    )
+    db.add(error_report)
+    db.commit()
+
+    return RedirectResponse(url="/error_reports", status_code=303)
+
+@app.post("/log/submit")
+async def submit_log(
+    request: Request,
+    manager: str = Form(...),
+    status: str = Form(None),
+    log_date: str = Form(...),
+    log_time: str = Form(...),
+    completed_date: str = Form(None),
+    completed_time: str = Form(None),
+    client_name: str = Form(...),
+    system_name: str = Form(...),
+    target_env: str = Form(None),
+    log_type: str = Form(...),
+    content: str = Form(...),
+    action: str = Form(None),
+    summary: str = Form(None),
+    etc: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    from datetime import datetime
+
+    # log_date + log_time 합치기
+    log_datetime = datetime.strptime(f"{log_date} {log_time}", "%Y-%m-%d %H:%M")
+    completed_datetime = None
+    if completed_date and completed_time:
+        completed_datetime = datetime.strptime(f"{completed_date} {completed_time}", "%Y-%m-%d %H:%M")
+
+    # report 테이블에 insert
+    report = Report(
+        create_by=1,
+        report_type="log",
+        created_at=datetime.now()
+    )
+    db.add(report)
+    db.commit()
+    db.refresh(report)
+
+    # log_report 테이블에 insert
+    log_report = LogReport(
+        report_id=report.report_id,
+        manager=manager,
+        status=status,
+        log_date=log_datetime,
+        completed_date=completed_datetime,
+        client_name=client_name,
+        system_name=system_name,
+        target_env=target_env,
+        log_type=log_type,
+        content=content,
+        action=action,
+        summary=summary,
+        etc=etc
+    )
+    db.add(log_report)
+    db.commit()
+
+    return RedirectResponse(url="/log_reports", status_code=303)
+
+
+
+
+@app.get("/error_reports", response_class=HTMLResponse)
+def error_report_list(request: Request, page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    offset = (page - 1) * limit
+    total = db.query(ErrorReport).count()
+    total_pages = ceil(total / limit)
+
+    # 최대 5개의 페이징 번호만 표시
+    start_page = max(1, page - 2)
+    end_page = min(start_page + 4, total_pages)
+    start_page = max(1, end_page - 4)
+
+    reports = db.query(ErrorReport)\
+                .order_by(ErrorReport.error_start_date.desc())\
+                .offset(offset).limit(limit).all()
+
+    return templates.TemplateResponse("report/error_report_list.html", {
+        "request": request,
+        "reports": reports,
+        "page": page,
+        "total_pages": total_pages,
+        "start_page": start_page,
+        "end_page": end_page
+    })
+
+
+@app.get("/log_reports", response_class=HTMLResponse)
+def log_report_list(request: Request, page: int = 1, limit: int = 10, db: Session = Depends(get_db)):
+    offset = (page - 1) * limit
+    total = db.query(LogReport).count()
+    total_pages = ceil(total / limit)
+
+    # 최대 5개의 페이징 번호만 표시
+    start_page = max(1, page - 2)
+    end_page = min(start_page + 4, total_pages)
+    start_page = max(1, end_page - 4)
+
+    reports = db.query(LogReport).order_by(LogReport.log_date.desc()).offset(offset).limit(limit).all()
+
+    return templates.TemplateResponse("report/log_reports.html", {
+        "request": request,
+        "reports": reports,
+        "page": page,
+        "total_pages": total_pages,
+        "start_page": start_page,
+        "end_page": end_page
+    })
+
+
+@app.get("/msp_reports/download")
+async def download_msp_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+
+    reports = db.query(MspReport).filter(MspReport.request_date.between(start, end)).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    # [✅ 올바른 헤더 순서]
+    writer.writerow([
+        "요청일자", "고객사", "시스템명", "대상 환경",
+        "요청자", "요청유형", "요청내용", "목적",
+        "담당자", "상태", "완료일자", "응답", "비고"
+    ])
+
+    for r in reports:
+        writer.writerow([
+            r.request_date.strftime("%Y-%m-%d %H:%M") if r.request_date else '',
+            r.client_name or '',
+            r.system_name or '',
+            r.target_env or '',
+            r.requester or '',
+            r.request_type or '',
+            r.request_content or '',
+            r.purpose or '',
+            r.manager or '',
+            r.status or '',
+            r.completed_date.strftime("%Y-%m-%d %H:%M") if r.completed_date else '',
+            r.response or '',
+            r.etc or ''
+        ])
+
+    output.seek(0)
+
+    # BOM 추가해서 한글 깨짐 방지
+    bom = '\ufeff'
+    csv_content = bom + output.getvalue()
+
+    return Response(
+        content=csv_content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=msp_reports.csv"}
+    )
+
+
+@app.get("/error_reports/download")
+async def download_error_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+
+    reports = db.query(ErrorReport).filter(ErrorReport.error_start_date.between(start, end)).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["장애일자", "고객사", "시스템명", "대상 환경", "장애대상", "고객 영향도", "장애내용", "장애원인", "조치내용", "담당자", "상태", "장애종료일자", "비고"])
+
+    for r in reports:
+        writer.writerow([
+            r.error_start_date.strftime("%Y-%m-%d %H:%M") if r.error_start_date else '',
+            r.client_name or '',
+            r.system_name or '',
+            r.target_env or '',
+            r.target_component or '',
+            r.customer_impact or '',
+            r.error_info or '',
+            r.error_reason or '',
+            r.action_taken or '',
+            r.manager or '',
+            r.status or '',
+            r.error_end_date.strftime("%Y-%m-%d %H:%M") if r.error_end_date else '',
+            r.etc or ''
+        ])
+
+    output.seek(0)
+    bom = '\ufeff'
+    return Response(
+        content=bom + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=error_reports.csv"}
+    )
+
+
+@app.get("/log_reports/download")
+async def download_log_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
+    start = datetime.strptime(start_date, "%Y-%m-%d")
+    end = datetime.strptime(end_date, "%Y-%m-%d")
+
+    reports = db.query(LogReport).filter(LogReport.log_date.between(start, end)).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["로그일자", "고객사", "시스템명", "대상 환경", "유형", "내용", "조치", "담당자", "상태", "완료일자", "요약", "비고"])
+
+    for r in reports:
+        writer.writerow([
+            r.log_date.strftime("%Y-%m-%d %H:%M") if r.log_date else '',
+            r.client_name or '',
+            r.system_name or '',
+            r.target_env or '',
+            r.log_type or '',
+            r.content or '',
+            r.action or '',
+            r.manager or '',
+            r.status or '',
+            r.completed_date.strftime("%Y-%m-%d %H:%M") if r.completed_date else '',
+            r.summary or '',
+            r.etc or ''
+        ])
+
+    output.seek(0)
+    bom = '\ufeff'
+    return Response(
+        content=bom + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=log_reports.csv"}
+    )

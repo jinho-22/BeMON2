@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>MSP 메인 페이지</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    {% include 'layout/header.html' %}
+  <div class="container">
+    <div class="section">
+      <h2>MSP 작업관리</h2>
+      <table>
+        <thead>
+          <tr><th>요청일자</th><th>고객사</th><th>시스템명</th><th>담당자</th><th>상태</th><th>요청내용</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>2025-04-09</td><td>소프트브릿지</td><td>센터01</td><td>우진호</td><td>완료</td><td>WAS 서버 재기동</td></tr>
+          <tr><td>2025-04-10</td><td>소프트브릿지</td><td>센터02</td><td>김민수</td><td>진행 중</td><td>DB 백업</td></tr>
+          <tr><td>2025-04-11</td><td>엔에스테크</td><td>센터03</td><td>이수연</td><td>대기</td><td>서버 점검 요청</td></tr>
+          <tr><td>2025-04-12</td><td>소프트브릿지</td><td>센터04</td><td>박지훈</td><td>완료</td><td>장애 수정</td></tr>
+          <tr><td>2025-04-13</td><td>엔에스테크</td><td>센터05</td><td>최윤서</td><td>진행 중</td><td>SSL 갱신</td></tr>
+        </tbody>
+      </table>
+      <div class="button-group"><button onclick="location.href='/reports'">자세히 보기</button></div>
+    </div>
+
+    <div class="section">
+      <h2>장애관리</h2>
+      <table>
+        <thead>
+          <tr><th>장애발생일자</th><th>고객사</th><th>시스템명</th><th>담당자</th><th>상태</th><th>요청내용</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>2025-04-09</td><td>소프트브릿지</td><td>센터01</td><td>우진호</td><td>완료</td><td>WAS 다운 복구</td></tr>
+          <tr><td>2025-04-10</td><td>소프트브릿지</td><td>센터02</td><td>김민수</td><td>진행 중</td><td>DB 연결 장애</td></tr>
+          <tr><td>2025-04-11</td><td>엔에스테크</td><td>센터03</td><td>이수연</td><td>대기</td><td>서버 부팅 실패</td></tr>
+          <tr><td>2025-04-12</td><td>소프트브릿지</td><td>센터04</td><td>박지훈</td><td>완료</td><td>네트워크 장애</td></tr>
+          <tr><td>2025-04-13</td><td>엔에스테크</td><td>센터05</td><td>최윤서</td><td>진행 중</td><td>인증서 오류</td></tr>
+        </tbody>
+      </table>
+      <div class="button-group"><button onclick="location.href='/error_reports'">자세히 보기</button></div>
+    </div>
+
+    <div class="section">
+      <h2>일지</h2>
+      <table>
+        <thead>
+          <tr><th>작성일자</th><th>고객사</th><th>시스템명</th><th>담당자</th><th>상태</th><th>요청내용</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>2025-04-09</td><td>소프트브릿지</td><td>센터01</td><td>우진호</td><td>완료</td><td>WAS 서버 점검</td></tr>
+          <tr><td>2025-04-10</td><td>소프트브릿지</td><td>센터02</td><td>김민수</td><td>진행 중</td><td>DB 점검</td></tr>
+          <tr><td>2025-04-11</td><td>엔에스테크</td><td>센터03</td><td>이수연</td><td>대기</td><td>보안 패치</td></tr>
+          <tr><td>2025-04-12</td><td>소프트브릿지</td><td>센터04</td><td>박지훈</td><td>완료</td><td>로그 정리</td></tr>
+          <tr><td>2025-04-13</td><td>엔에스테크</td><td>센터05</td><td>최윤서</td><td>진행 중</td><td>장비 교체</td></tr>
+        </tbody>
+      </table>
+      <div class="button-group"><button onclick="location.href='/log_reports'">자세히 보기</button></div>
+    </div>
+  </div>
+</body>
+</html>
