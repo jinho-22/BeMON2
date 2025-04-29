@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>회원가입</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    /* 로그인, 회원가입 폼 공통 스타일 */
+.form-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 30px;
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0px 0px 10px rgba(0,0,0,0.05);
+}
+
+.form-container h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.form-container form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.form-container label {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.form-container input[type="text"],
+.form-container input[type="password"],
+.form-container input[type="email"] {
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.form-container button {
+  padding: 12px;
+  background-color: #4285F4;
+  border: none;
+  border-radius: 4px;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.form-container button:hover {
+  background-color: #357ae8;
+}
+
+.form-container .error-message {
+  color: red;
+  font-size: 14px;
+  text-align: center;
+  margin-top: -10px;
+}
+
+
+  </style>
+</head>
+<body>
+  {% include 'layout/header.html' %}
+
+  <div class="form-container">
+    <h2>회원가입</h2>
+
+    <form method="post" action="/register">
+      <div>
+        <label>아이디*</label>
+        <input type="text" name="username" required>
+      </div>
+      <div>
+        <label>비밀번호*</label>
+        <input type="password" name="password" required>
+      </div>
+      <div>
+        <label>이름*</label>
+        <input type="text" name="name" required>
+      </div>
+      <div>
+        <label>이메일</label>
+        <input type="email" name="email">
+      </div>
+
+      {% if error %}
+        <p class="error-message">{{ error }}</p>
+      {% endif %}
+
+      <button type="submit">회원가입</button>
+    </form>
+  </div>
+
+</body>
+</html>

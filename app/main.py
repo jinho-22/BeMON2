@@ -5,17 +5,20 @@ from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.models import Report, ErrorReport, MspReport, LogReport
+from app.models.models import Report, ErrorReport, MspReport, LogReport, User
 from fastapi.templating import Jinja2Templates
 from math import ceil
 from datetime import datetime
 import io
 import csv
+from starlette.middleware.sessions import SessionMiddleware
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 app = FastAPI()
+app.add_middleware(SessionMiddleware, secret_key="supersecret123")
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
@@ -63,7 +66,56 @@ def report_list(request: Request, page: int = 1, limit: int = 10, db: Session = 
     })
 
 
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request):
+    return templates.TemplateResponse("login/login.html", {"request": request})
 
+@app.post("/login", response_class=HTMLResponse)
+async def login(request: Request, username: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.username == username, User.password == password).first()
+    if user:
+        request.session["user_id"] = user.user_id
+        request.session["username"] = user.username
+        return RedirectResponse(url="/", status_code=303)
+    else:
+        return templates.TemplateResponse("login/login.html", {
+            "request": request,
+            "error": "아이디 또는 비밀번호가 잘못되었습니다."
+        })
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/login", status_code=303)
+
+@app.get("/register", response_class=HTMLResponse)
+async def register_page(request: Request):
+    return templates.TemplateResponse("login/register.html", {"request": request})
+
+@app.post("/register")
+async def register(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    name: str = Form(...),
+    email: str = Form(None),
+    db: Session = Depends(get_db)
+):
+    existing_user = db.query(User).filter(User.username == username).first()
+    if existing_user:
+        return templates.TemplateResponse("login/register.html", {"request": request, "error": "이미 존재하는 아이디입니다."})
+
+    new_user = User(
+        username=username,
+        password=password,
+        name=name,
+        email=email,
+        created_at=datetime.now()
+    )
+    db.add(new_user)
+    db.commit()
+
+    return RedirectResponse(url="/login", status_code=303)
 
 
 @app.get("/report/{report_id}", response_class=HTMLResponse)
@@ -443,3 +495,4 @@ async def download_log_csv(request: Request, start_date: str, end_date: str, db:
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=log_reports.csv"}
     )
+

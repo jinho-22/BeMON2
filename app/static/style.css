@@ -24,6 +24,54 @@ header {
   border-bottom: 1px solid #ddd;
 }
 
+.top-bar {
+  position: relative;
+  height: 60px;
+  border-bottom: 1px solid #ddd;
+  background-color: #fff;
+}
+
+.top-bar h1 {
+  text-align: center;
+  margin: 0;
+  line-height: 60px;
+  font-size: 24px;
+}
+
+.top-bar h1 a {
+  color: #000;
+  text-decoration: none;
+}
+
+.header {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header a {
+  padding: 6px 12px;
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.header a:hover {
+  background-color: #0056b3;
+}
+
+.header span {
+  font-size: 13px;
+  font-weight: bold;
+}
+
+
 .logo {
   font-size: 24px;
   font-weight: bold;
