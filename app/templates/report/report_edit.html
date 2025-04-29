@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>리포트 수정</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  
+  <div class="container">
+    <h1>리포트 수정</h1>
+
+    <form method="post" action="/report/{{ report.report_id }}/edit">
+      
+      {% if report_type == "msp" %}
+      <div class="section">
+        <h2>기본 정보</h2>
+        <div class="form-row">
+          <label>담당자</label><input type="text" name="manager" value="{{ report.manager }}">
+          <label>상태</label>
+          <select name="status">
+            <option value="대기" {% if report.status == '대기' %}selected{% endif %}>대기</option>
+            <option value="진행 중" {% if report.status == '진행 중' %}selected{% endif %}>진행 중</option>
+            <option value="완료" {% if report.status == '완료' %}selected{% endif %}>완료</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>요청일시</label>
+          <input type="date" name="request_date" value="{{ report.request_date.strftime('%Y-%m-%d') if report.request_date }}">
+          <input type="time" name="request_time" value="{{ report.request_date.strftime('%H:%M') if report.request_date }}">
+        </div>
+        <div class="form-row">
+          <label>완료일시</label>
+          <input type="date" name="completed_date" value="{{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}">
+          <input type="time" name="completed_time" value="{{ report.completed_date.strftime('%H:%M') if report.completed_date }}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>고객 및 시스템 정보</h2>
+        <div class="form-row">
+          <label>고객사</label><input type="text" name="client_name" value="{{ report.client_name }}">
+          <label>시스템명</label><input type="text" name="system_name" value="{{ report.system_name }}">
+        </div>
+        <div class="form-row">
+          <label>대상 환경</label><input type="text" name="target_env" value="{{ report.target_env }}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>요청 내용 및 응답</h2>
+        <div class="form-row">
+          <label>요청자</label><input type="text" name="requester" value="{{ report.requester }}">
+          <label>요청유형</label><input type="text" name="request_type" value="{{ report.request_type }}">
+        </div>
+        <div class="form-row">
+          <label>요청내용</label><textarea name="request_content">{{ report.request_content }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>목적</label><textarea name="purpose">{{ report.purpose }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>응답</label><textarea name="response">{{ report.response }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>비고</label><textarea name="etc">{{ report.etc }}</textarea>
+        </div>
+      </div>
+
+      {% elif report_type == "error" %}
+      <!-- 장애 리포트 수정폼 (비슷하게 구성) -->
+      (→ 이거 곧 이어서 줄게)
+
+      {% elif report_type == "log" %}
+      <!-- 일지 리포트 수정폼 (비슷하게 구성) -->
+      (→ 이거 곧 이어서 줄게)
+
+      {% endif %}
+
+      <div class="button-group">
+        <button type="submit">수정 완료</button>
+        <button type="button" onclick="window.history.back()">취소</button>
+      </div>
+
+    </form>
+
+  </div>
+</body>
+</html>

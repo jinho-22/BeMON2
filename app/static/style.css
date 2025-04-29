@@ -376,3 +376,55 @@ table th {
 .csv-download-btn:hover {
   background-color: #45a049;
 }
+
+#filter-section {
+  border: 1px solid #ccc;
+  padding: 16px;
+  border-radius: 6px;
+  background-color: #fafafa;
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr); /* 2열 고정 */
+  gap: 12px 24px;
+  align-items: center;
+}
+
+#filter-section label {
+  font-size: 12px;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 4px;
+}
+
+#filter-section input[type="text"],
+#filter-section input[type="date"],
+#filter-section select {
+  width: 100%;
+  padding: 6px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+#filter-section .button-group {
+  grid-column: span 2; /* 버튼은 전체 너비 */
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+#filter-section .button-group button {
+  padding: 6px 14px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid #ccc;
+  background-color: white;
+  transition: background-color 0.2s;
+}
+
+#filter-section .button-group button:hover {
+  background-color: #f0f0f0;
+}

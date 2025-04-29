@@ -1,9 +1,8 @@
-<!-- app/templates/report/log_report_list.html -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <title>일지 목록</title>
+  <title>일지 리포트 목록</title>
   <link rel="stylesheet" href="/static/style.css">
   <script>
     function toggleFilter() {
@@ -16,109 +15,131 @@
   {% include 'layout/header.html' %}
   <div class="container">
     <div class="section">
-      <h2>일지 목록</h2>
+      <h2>일지 리포트 목록</h2>
+
       <div class="filter-bar">
-        <input type="text" placeholder="통합 검색">
-        <button onclick="toggleFilter()">필터링</button>
+        <form method="get" style="display: flex; gap: 10px;">
+          <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}">
+          <button type="submit">검색</button>
+          <button type="button" onclick="toggleFilter()">필터링</button>
+        </form>
       </div>
-      <div id="filter-section" style="display: none; margin-top: 10px;">
+      
+
+      <form id="filter-section" method="get" style="display: none;">
         <div class="form-row">
           <div>
             <label>일자:</label>
-            <input type="date">
+            <input type="date" name="start_date" value="{{ request.query_params.get('start_date', '') }}">
           </div>
           <div>
-            <label style="visibility: hidden;">~</label>
-            <input type="date">
+            <label style="visibility:hidden;">~</label>
+            <input type="date" name="end_date" value="{{ request.query_params.get('end_date', '') }}">
           </div>
         </div>
+
         <div class="form-row">
-          <div>
-            <label>고객사:</label>
-            <select><option>전체</option></select>
-          </div>
-          <div>
-            <label>시스템명:</label>
-            <select><option>전체</option></select>
-          </div>
-        </div>
-        <div class="form-row">
-          <div>
-            <label>유형:</label>
-            <select><option>전체</option></select>
-          </div>
           <div>
             <label>상태:</label>
-            <select><option>전체</option></select>
+            <select name="status">
+              <option value="">전체</option>
+              <option value="대기" {% if request.query_params.get('status') == '대기' %}selected{% endif %}>대기</option>
+              <option value="진행 중" {% if request.query_params.get('status') == '진행 중' %}selected{% endif %}>진행 중</option>
+              <option value="완료" {% if request.query_params.get('status') == '완료' %}selected{% endif %}>완료</option>
+            </select>
           </div>
           <div>
             <label>담당자:</label>
-            <select><option>전체</option></select>
+            <input type="text" name="manager" value="{{ request.query_params.get('manager', '') }}">
           </div>
         </div>
-        <div class="button-group">
-          <button>검색</button>
-          <button>초기화</button>
+
+        <div class="form-row">
+          <div>
+            <label>고객사:</label>
+            <input type="text" name="client_name" value="{{ request.query_params.get('client_name', '') }}">
+          </div>
+          <div>
+            <label>시스템명:</label>
+            <input type="text" name="system_name" value="{{ request.query_params.get('system_name', '') }}">
+          </div>
         </div>
-      </div>
+
+        <div class="form-row">
+          <div>
+            <label>대상시스템/환경:</label>
+            <input type="text" name="target_env" value="{{ request.query_params.get('target_env', '') }}">
+          </div>
+          <div>
+            <label>유형:</label>
+            <input type="text" name="log_type" value="{{ request.query_params.get('log_type', '') }}">
+          </div>
+        </div>
+
+        <div class="button-group">
+          <button type="submit">검색</button>
+          <a href="/log_reports"><button type="button">초기화</button></a>
+        </div>
+      </form>
 
       <table>
         <thead>
           <tr>
-            <th>일자</th>
-            <th>시간</th>
-            <th>고객사</th>
-            <th>시스템명</th>
-            <th>유형</th>
-            <th>상태</th>
-            <th>담당자</th>
-            <th>내용</th>
+            <th>일자</th><th>시간</th><th>고객사</th><th>시스템명</th><th>유형</th><th>상태</th><th>담당자</th><th>내용</th>
           </tr>
         </thead>
         <tbody>
-            {% for report in reports %}
-            <tr>
-              <td>
-                <a href="/report/{{ report.report_id }}?type=log">
-                  {{ report.log_date.strftime('%Y-%m-%d') }}
-                </a>
-              </td>
-              <td>{{ report.log_date.strftime('%H:%M') }}</td>
-              <td>{{ report.client_name }}</td>
-              <td>{{ report.system_name }}</td>
-              <td>{{ report.log_type }}</td>
-              <td>{{ report.status }}</td>
-              <td>{{ report.manager }}</td>
-              <td>{{ report.content }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-          
+          {% for report in reports %}
+          <tr>
+            <td>
+              <a href="/report/{{ report.report_id }}?type=log">
+                {{ report.log_date.strftime('%Y-%m-%d') }}
+              </a>
+            </td>
+            <td>{{ report.log_date.strftime('%H:%M') }}</td>
+            <td>{{ report.client_name }}</td>
+            <td>{{ report.system_name }}</td>
+            <td>{{ report.log_type }}</td>
+            <td>{{ report.status }}</td>
+            <td>{{ report.manager }}</td>
+            <td>{{ report.content }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
       </table>
 
       <div class="pagination">
+        {% set params = [] %}
+        {% for k, v in request.query_params.multi_items() %}
+          {% if k != 'page' %}
+            {% set _ = params.append('%s=%s' % (k, v)) %}
+          {% endif %}
+        {% endfor %}
+        {% set query_string = '&'.join(params) %}
+        {% if query_string %}{% set query_string = query_string + '&' %}{% endif %}
+
         {% if page > 1 %}
-          <a href="?page=1">&laquo;</a>
-          <a href="?page={{ page - 1 }}">&lsaquo;</a>
+          <a href="?{{ query_string }}page=1">&laquo;</a>
+          <a href="?{{ query_string }}page={{ page - 1 }}">&lsaquo;</a>
         {% endif %}
 
         {% for p in range(start_page, end_page + 1) %}
           {% if p == page %}
             <span class="current">{{ p }}</span>
           {% else %}
-            <a href="?page={{ p }}">{{ p }}</a>
+            <a href="?{{ query_string }}page={{ p }}">{{ p }}</a>
           {% endif %}
         {% endfor %}
 
         {% if page < total_pages %}
-          <a href="?page={{ page + 1 }}">&rsaquo;</a>
-          <a href="?page={{ total_pages }}">&raquo;</a>
+          <a href="?{{ query_string }}page={{ page + 1 }}">&rsaquo;</a>
+          <a href="?{{ query_string }}page={{ total_pages }}">&raquo;</a>
         {% endif %}
       </div>
 
       <div class="download-link">
         <button onclick="toggleDownload()" class="csv-download-btn">CSV 다운로드</button>
-        <form method="get" action="/error_reports/download" id="download-form" style="display: none; margin-top: 10px;">
+        <form method="get" action="/log_reports/download" id="download-form" style="display: none; margin-top: 10px;">
           <input type="date" name="start_date" required>
           <span>~</span>
           <input type="date" name="end_date" required>
@@ -132,7 +153,7 @@
           form.style.display = form.style.display === 'none' ? 'flex' : 'none';
         }
       </script>
-      
+
     </div>
   </div>
 </body>
