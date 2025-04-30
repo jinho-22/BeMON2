@@ -18,11 +18,8 @@
       <h2>장애 리포트 목록</h2>
 
       <div class="filter-bar">
-        <form method="get" style="display: flex; gap: 10px;">
-          <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}">
-          <button type="submit">검색</button>
-          <button type="button" onclick="toggleFilter()">필터링</button>
-        </form>
+        <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}" onkeydown="if(event.key==='Enter') location.href='?search='+this.value">
+        <button type="button" onclick="toggleFilter()">필터링</button>
       </div>
       
 
