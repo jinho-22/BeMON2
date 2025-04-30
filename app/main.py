@@ -14,6 +14,10 @@ import io
 import csv
 from starlette.middleware.sessions import SessionMiddleware
 from urllib.parse import urlencode
+from natsort import natsorted
+from sqlalchemy import text
+import re
+
 
 
 
@@ -29,8 +33,16 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(router)
 
 @app.get("/", response_class=HTMLResponse)
-def read_root(request: Request):
-    return templates.TemplateResponse("main.html", {"request": request})
+def main_page(request: Request, db: Session = Depends(get_db)):
+    msp_reports = db.query(MspReport).order_by(MspReport.request_date.desc()).limit(5).all()
+    error_reports = db.query(ErrorReport).order_by(ErrorReport.error_start_date.desc()).limit(5).all()
+    log_reports = db.query(LogReport).order_by(LogReport.log_date.desc()).limit(5).all()
+    return templates.TemplateResponse("main.html", {
+        "request": request,
+        "msp_reports": msp_reports,
+        "error_reports": error_reports,
+        "log_reports": log_reports
+    })
 
 @app.get("/msp", response_class=HTMLResponse)
 async def msp_page(request: Request):
@@ -635,12 +647,16 @@ async def report_delete(report_id: int, db: Session = Depends(get_db)):
     elif report_type == "log":
         return RedirectResponse(url="/log_reports", status_code=303)
 
+from sqlalchemy import asc, desc  # 추가
+
+def natural_keys(text):
+    return [int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', text)]
+
 @app.get("/reports", response_class=HTMLResponse)
 def report_list(
     request: Request,
     page: int = 1,
     limit: int = 10,
-    search: str = "",           # ✅ 추가
     manager: str = "",
     requester: str = "",
     status: str = "",
@@ -650,24 +666,14 @@ def report_list(
     request_type: str = "",
     start_date: str = "",
     end_date: str = "",
+    search: str = "",
+    sort: str = "request_date",
+    direction: str = "desc",
     db: Session = Depends(get_db)
 ):
     offset = (page - 1) * limit
     query = db.query(MspReport)
 
-    # ✅ 통합 검색어 조건 추가
-    if search:
-        query = query.filter(
-            (MspReport.manager.contains(search)) |
-            (MspReport.requester.contains(search)) |
-            (MspReport.client_name.contains(search)) |
-            (MspReport.system_name.contains(search)) |
-            (MspReport.target_env.contains(search)) |
-            (MspReport.request_type.contains(search)) |
-            (MspReport.request_content.contains(search))
-        )
-
-    # ✅ 기존 필터 조건
     if manager:
         query = query.filter(MspReport.manager.contains(manager))
     if requester:
@@ -686,18 +692,32 @@ def report_list(
         query = query.filter(
             MspReport.request_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
         )
+    if search:
+        query = query.filter(
+            MspReport.client_name.contains(search) |
+            MspReport.system_name.contains(search) |
+            MspReport.manager.contains(search)
+        )
 
-    total = query.count()
+    all_reports = query.all()
+
+    # 자연 정렬이 필요한 필드
+    natural_sort_fields = ["client_name", "system_name", "manager", "request_type", "status"]
+
+    if sort in natural_sort_fields:
+        all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
+    elif hasattr(MspReport, sort):
+        all_reports.sort(key=lambda x: getattr(x, sort), reverse=(direction == "desc"))
+
+    total = len(all_reports)
     total_pages = ceil(total / limit)
     start_page = max(1, page - 2)
     end_page = min(start_page + 4, total_pages)
     start_page = max(1, end_page - 4)
 
-    reports = query.order_by(MspReport.request_date.desc()).offset(offset).limit(limit).all()
+    reports = all_reports[offset:offset + limit]
 
-    # ✅ query string 다시 만들기
     query_dict = {
-        "search": search,
         "manager": manager,
         "requester": requester,
         "status": status,
@@ -706,7 +726,10 @@ def report_list(
         "target_env": target_env,
         "request_type": request_type,
         "start_date": start_date,
-        "end_date": end_date
+        "end_date": end_date,
+        "search": search,
+        "sort": sort,
+        "direction": direction
     }
     filtered_query = {k: v for k, v in query_dict.items() if v}
     query_string = urlencode(filtered_query)
@@ -718,8 +741,12 @@ def report_list(
         "total_pages": total_pages,
         "start_page": start_page,
         "end_page": end_page,
-        "query_string": query_string
+        "query_string": query_string,
+        "current_sort": sort,
+        "current_direction": direction
     })
+
+
 
 
 
@@ -728,32 +755,19 @@ def error_report_list(
     request: Request,
     page: int = 1,
     limit: int = 10,
-    search: str = "",         # ✅ 추가
     manager: str = "",
     status: str = "",
     client_name: str = "",
     system_name: str = "",
     target_env: str = "",
-    target_component: str = "",
-    start_date: str = "",
-    end_date: str = "",
+    search: str = "",
+    sort: str = "error_start_date",
+    direction: str = "desc",
     db: Session = Depends(get_db)
 ):
     offset = (page - 1) * limit
     query = db.query(ErrorReport)
 
-    # ✅ 통합 검색어 조건 추가
-    if search:
-        query = query.filter(
-            (ErrorReport.manager.contains(search)) |
-            (ErrorReport.client_name.contains(search)) |
-            (ErrorReport.system_name.contains(search)) |
-            (ErrorReport.target_env.contains(search)) |
-            (ErrorReport.target_component.contains(search)) |
-            (ErrorReport.error_info.contains(search))
-        )
-
-    # ✅ 기존 필터 조건
     if manager:
         query = query.filter(ErrorReport.manager.contains(manager))
     if status:
@@ -764,31 +778,37 @@ def error_report_list(
         query = query.filter(ErrorReport.system_name.contains(system_name))
     if target_env:
         query = query.filter(ErrorReport.target_env.contains(target_env))
-    if target_component:
-        query = query.filter(ErrorReport.target_component.contains(target_component))
-    if start_date and end_date:
+    if search:
         query = query.filter(
-            ErrorReport.error_start_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
+            ErrorReport.client_name.contains(search) |
+            ErrorReport.system_name.contains(search) |
+            ErrorReport.manager.contains(search)
         )
 
-    total = query.count()
+    all_reports = query.all()
+
+    if sort in ["client_name", "system_name", "manager"]:
+        all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
+    elif hasattr(ErrorReport, sort):
+        all_reports.sort(key=lambda x: getattr(x, sort), reverse=(direction == "desc"))
+
+    total = len(all_reports)
     total_pages = ceil(total / limit)
     start_page = max(1, page - 2)
     end_page = min(start_page + 4, total_pages)
     start_page = max(1, end_page - 4)
 
-    reports = query.order_by(ErrorReport.error_start_date.desc()).offset(offset).limit(limit).all()
+    reports = all_reports[offset:offset + limit]
 
     query_dict = {
-        "search": search,
         "manager": manager,
         "status": status,
         "client_name": client_name,
         "system_name": system_name,
         "target_env": target_env,
-        "target_component": target_component,
-        "start_date": start_date,
-        "end_date": end_date
+        "search": search,
+        "sort": sort,
+        "direction": direction
     }
     filtered_query = {k: v for k, v in query_dict.items() if v}
     query_string = urlencode(filtered_query)
@@ -800,7 +820,9 @@ def error_report_list(
         "total_pages": total_pages,
         "start_page": start_page,
         "end_page": end_page,
-        "query_string": query_string
+        "query_string": query_string,
+        "current_sort": sort,
+        "current_direction": direction
     })
 
 
@@ -810,32 +832,19 @@ def log_report_list(
     request: Request,
     page: int = 1,
     limit: int = 10,
-    search: str = "",         # ✅ 추가
     manager: str = "",
     status: str = "",
     client_name: str = "",
     system_name: str = "",
     target_env: str = "",
-    log_type: str = "",
-    start_date: str = "",
-    end_date: str = "",
+    search: str = "",
+    sort: str = "log_date",
+    direction: str = "desc",
     db: Session = Depends(get_db)
 ):
     offset = (page - 1) * limit
     query = db.query(LogReport)
 
-    # ✅ 통합 검색어 조건 추가
-    if search:
-        query = query.filter(
-            (LogReport.manager.contains(search)) |
-            (LogReport.client_name.contains(search)) |
-            (LogReport.system_name.contains(search)) |
-            (LogReport.target_env.contains(search)) |
-            (LogReport.log_type.contains(search)) |
-            (LogReport.content.contains(search))
-        )
-
-    # ✅ 기존 필터 조건
     if manager:
         query = query.filter(LogReport.manager.contains(manager))
     if status:
@@ -846,31 +855,37 @@ def log_report_list(
         query = query.filter(LogReport.system_name.contains(system_name))
     if target_env:
         query = query.filter(LogReport.target_env.contains(target_env))
-    if log_type:
-        query = query.filter(LogReport.log_type.contains(log_type))
-    if start_date and end_date:
+    if search:
         query = query.filter(
-            LogReport.log_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
+            LogReport.client_name.contains(search) |
+            LogReport.system_name.contains(search) |
+            LogReport.manager.contains(search)
         )
 
-    total = query.count()
+    all_reports = query.all()
+
+    if sort in ["client_name", "system_name", "manager"]:
+        all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
+    elif hasattr(LogReport, sort):
+        all_reports.sort(key=lambda x: getattr(x, sort), reverse=(direction == "desc"))
+
+    total = len(all_reports)
     total_pages = ceil(total / limit)
     start_page = max(1, page - 2)
     end_page = min(start_page + 4, total_pages)
     start_page = max(1, end_page - 4)
 
-    reports = query.order_by(LogReport.log_date.desc()).offset(offset).limit(limit).all()
+    reports = all_reports[offset:offset + limit]
 
     query_dict = {
-        "search": search,
         "manager": manager,
         "status": status,
         "client_name": client_name,
         "system_name": system_name,
         "target_env": target_env,
-        "log_type": log_type,
-        "start_date": start_date,
-        "end_date": end_date
+        "search": search,
+        "sort": sort,
+        "direction": direction
     }
     filtered_query = {k: v for k, v in query_dict.items() if v}
     query_string = urlencode(filtered_query)
@@ -882,5 +897,7 @@ def log_report_list(
         "total_pages": total_pages,
         "start_page": start_page,
         "end_page": end_page,
-        "query_string": query_string
+        "query_string": query_string,
+        "current_sort": sort,
+        "current_direction": direction
     })

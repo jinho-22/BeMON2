@@ -18,7 +18,6 @@
       <h2>작업관리 리포트 목록</h2>
 
       <div class="filter-bar">
-        <!-- ✅ 통합 검색 입력 가능하게 변경 -->
         <form method="get" style="display: flex; gap: 10px;">
           <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}">
           <button type="submit">검색</button>
@@ -92,9 +91,28 @@
       <table>
         <thead>
           <tr>
-            <th>요청일자</th><th>요청시간</th><th>고객사</th><th>시스템명</th><th>요청유형</th><th>상태</th><th>담당자</th><th>요청내용</th>
+            {% macro sort_link(column, label) %}
+              {% set dir = 'asc' if current_sort != column or current_direction == 'desc' else 'desc' %}
+              <th>
+                <a href="?{{ query_string }}&sort={{ column }}&direction={{ dir }}">{{ label }}
+                  {% if current_sort == column %}
+                    {{ '▼' if current_direction == 'desc' else '▲' }}
+                  {% endif %}
+                </a>
+              </th>
+            {% endmacro %}
+        
+            {{ sort_link('request_date', '요청일자') }}
+            <th>요청시간</th>
+            {{ sort_link('client_name', '고객사') }}
+            {{ sort_link('system_name', '시스템명') }}
+            {{ sort_link('request_type', '요청유형') }}
+            {{ sort_link('status', '상태') }}
+            {{ sort_link('manager', '담당자') }}
+            <th>요청내용</th>
           </tr>
         </thead>
+        
         <tbody>
           {% for report in reports %}
           <tr>

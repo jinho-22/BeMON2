@@ -9,6 +9,11 @@
       const filter = document.getElementById('filter-section');
       filter.style.display = filter.style.display === 'none' ? 'block' : 'none';
     }
+
+    function toggleDownload() {
+      const form = document.getElementById('download-form');
+      form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+    }
   </script>
 </head>
 <body>
@@ -18,13 +23,9 @@
       <h2>일지 리포트 목록</h2>
 
       <div class="filter-bar">
-        <form method="get" style="display: flex; gap: 10px;">
-          <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}">
-          <button type="submit">검색</button>
-          <button type="button" onclick="toggleFilter()">필터링</button>
-        </form>
+        <input type="text" name="search" placeholder="통합 검색" value="{{ request.query_params.get('search', '') }}" onkeydown="if(event.key==='Enter') location.href='?search='+this.value">
+        <button type="button" onclick="toggleFilter()">필터링</button>
       </div>
-      
 
       <form id="filter-section" method="get" style="display: none;">
         <div class="form-row">
@@ -67,7 +68,7 @@
 
         <div class="form-row">
           <div>
-            <label>대상시스템/환경:</label>
+            <label>대상환경:</label>
             <input type="text" name="target_env" value="{{ request.query_params.get('target_env', '') }}">
           </div>
           <div>
@@ -85,7 +86,25 @@
       <table>
         <thead>
           <tr>
-            <th>일자</th><th>시간</th><th>고객사</th><th>시스템명</th><th>유형</th><th>상태</th><th>담당자</th><th>내용</th>
+            {% macro sort_link(column, label) %}
+              {% set dir = 'asc' if current_sort != column or current_direction == 'desc' else 'desc' %}
+              <th>
+                <a href="?{{ query_string }}&sort={{ column }}&direction={{ dir }}">{{ label }}
+                  {% if current_sort == column %}
+                    {{ '▼' if current_direction == 'desc' else '▲' }}
+                  {% endif %}
+                </a>
+              </th>
+            {% endmacro %}
+
+            {{ sort_link('log_date', '일자') }}
+            <th>시간</th>
+            {{ sort_link('client_name', '고객사') }}
+            {{ sort_link('system_name', '시스템명') }}
+            {{ sort_link('log_type', '유형') }}
+            {{ sort_link('status', '상태') }}
+            {{ sort_link('manager', '담당자') }}
+            <th>내용</th>
           </tr>
         </thead>
         <tbody>
@@ -109,31 +128,22 @@
       </table>
 
       <div class="pagination">
-        {% set params = [] %}
-        {% for k, v in request.query_params.multi_items() %}
-          {% if k != 'page' %}
-            {% set _ = params.append('%s=%s' % (k, v)) %}
-          {% endif %}
-        {% endfor %}
-        {% set query_string = '&'.join(params) %}
-        {% if query_string %}{% set query_string = query_string + '&' %}{% endif %}
-
         {% if page > 1 %}
-          <a href="?{{ query_string }}page=1">&laquo;</a>
-          <a href="?{{ query_string }}page={{ page - 1 }}">&lsaquo;</a>
+          <a href="?{{ query_string }}&page=1">&laquo;</a>
+          <a href="?{{ query_string }}&page={{ page - 1 }}">&lsaquo;</a>
         {% endif %}
 
         {% for p in range(start_page, end_page + 1) %}
           {% if p == page %}
             <span class="current">{{ p }}</span>
           {% else %}
-            <a href="?{{ query_string }}page={{ p }}">{{ p }}</a>
+            <a href="?{{ query_string }}&page={{ p }}">{{ p }}</a>
           {% endif %}
         {% endfor %}
 
         {% if page < total_pages %}
-          <a href="?{{ query_string }}page={{ page + 1 }}">&rsaquo;</a>
-          <a href="?{{ query_string }}page={{ total_pages }}">&raquo;</a>
+          <a href="?{{ query_string }}&page={{ page + 1 }}">&rsaquo;</a>
+          <a href="?{{ query_string }}&page={{ total_pages }}">&raquo;</a>
         {% endif %}
       </div>
 
@@ -146,14 +156,6 @@
           <button type="submit" class="csv-download-btn">다운로드</button>
         </form>
       </div>
-
-      <script>
-        function toggleDownload() {
-          const form = document.getElementById('download-form');
-          form.style.display = form.style.display === 'none' ? 'flex' : 'none';
-        }
-      </script>
-
     </div>
   </div>
 </body>
