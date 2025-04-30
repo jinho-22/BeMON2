@@ -91,6 +91,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
     if user:
         request.session["user_id"] = user.user_id
         request.session["username"] = user.username
+        request.session['name'] = user.name
         return RedirectResponse(url="/", status_code=303)
     else:
         return templates.TemplateResponse("login/login.html", {

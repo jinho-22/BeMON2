@@ -10,8 +10,8 @@
     <div class="top-bar">
       <h1><a href="/">MSP 작업관리 시스템</a></h1>
       <div class="header">
-        {% if request.session.get('username') %}
-          <span>{{ request.session.get('username') }}님 환영합니다!</span>
+        {% if request.session.get('name') %}
+          <span>{{ request.session.get('name') }}</span>
           <a href="/logout">로그아웃</a>
         {% else %}
           <a href="/login">로그인</a>
