@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>내 정보</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  <div class="container">
+    <h2>내 정보</h2>
+    <table>
+      <tr><th style="border-bottom: none;">아이디</th><td>{{ user.username }}</td></tr>
+      <tr><th style="border-bottom: none;">이름</th><td>{{ user.name }}</td></tr>
+      <tr><th style="border-bottom: none;">이메일</th><td>{{ user.email or '없음' }}</td></tr>
+    </table>
+
+    <div class="button-group" style="margin-top: 20px;">
+      <a href="/change_password"><button>비밀번호 변경</button></a>
+    </div>
+  </div>
+</body>
+</html>

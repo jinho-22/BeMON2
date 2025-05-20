@@ -4,12 +4,12 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi import APIRouter, Request, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, func
 from app.database import get_db
 from app.models.models import Report, ErrorReport, MspReport, LogReport, User
 from fastapi.templating import Jinja2Templates
 from math import ceil
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
 import csv
 from starlette.middleware.sessions import SessionMiddleware
@@ -17,6 +17,8 @@ from urllib.parse import urlencode
 from natsort import natsorted
 from sqlalchemy import text
 import re
+from fastapi.responses import JSONResponse
+from collections import defaultdict
 
 
 
@@ -183,15 +185,17 @@ async def submit_msp(
     status: str = Form(None),
     db: Session = Depends(get_db)
 ):
-    # 날짜+시간 합치기
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
     request_datetime = datetime.strptime(f"{request_date} {request_time}", "%Y-%m-%d %H:%M")
     completed_datetime = None
     if completed_date and completed_time:
         completed_datetime = datetime.strptime(f"{completed_date} {completed_time}", "%Y-%m-%d %H:%M")
 
-    # 1. report 테이블 insert
     report = Report(
-        create_by=1,  # TODO: 로그인한 사용자 ID로 수정
+        create_by=user_id,
         report_type="msp",
         created_at=datetime.now()
     )
@@ -199,7 +203,6 @@ async def submit_msp(
     db.commit()
     db.refresh(report)
 
-    # 2. msp_report 테이블 insert
     msp_report = MspReport(
         report_id=report.report_id,
         manager=manager,
@@ -222,6 +225,7 @@ async def submit_msp(
     return RedirectResponse(url="/msp", status_code=303)
 
 
+
 @app.post("/error/submit")
 async def submit_error(
     request: Request,
@@ -242,9 +246,12 @@ async def submit_error(
     etc: str = Form(None),
     db: Session = Depends(get_db)
 ):
-    # 1. report 테이블에 insert
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
     report = Report(
-        create_by=1,  # TODO: 로그인 사용자로 교체
+        create_by=user_id,
         report_type="error",
         created_at=datetime.now()
     )
@@ -252,17 +259,9 @@ async def submit_error(
     db.commit()
     db.refresh(report)
 
-    # 2. 장애 시작일+시간 합치기
-    error_start_dt = None
-    if error_start_date and start_time:
-        error_start_dt = datetime.strptime(f"{error_start_date} {start_time}", "%Y-%m-%d %H:%M")
+    error_start_dt = datetime.strptime(f"{error_start_date} {start_time}", "%Y-%m-%d %H:%M") if error_start_date and start_time else None
+    error_end_dt = datetime.strptime(f"{error_end_date} {end_time}", "%Y-%m-%d %H:%M") if error_end_date and end_time else None
 
-    # 3. 장애 종료일+시간 합치기
-    error_end_dt = None
-    if error_end_date and end_time:
-        error_end_dt = datetime.strptime(f"{error_end_date} {end_time}", "%Y-%m-%d %H:%M")
-
-    # 4. error_report 테이블에 insert
     error_report = ErrorReport(
         report_id=report.report_id,
         manager=manager,
@@ -284,6 +283,7 @@ async def submit_error(
 
     return RedirectResponse(url="/error_reports", status_code=303)
 
+
 @app.post("/log/submit")
 async def submit_log(
     request: Request,
@@ -303,17 +303,15 @@ async def submit_log(
     etc: str = Form(None),
     db: Session = Depends(get_db)
 ):
-    from datetime import datetime
+    user_id = request.session.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
 
-    # log_date + log_time 합치기
     log_datetime = datetime.strptime(f"{log_date} {log_time}", "%Y-%m-%d %H:%M")
-    completed_datetime = None
-    if completed_date and completed_time:
-        completed_datetime = datetime.strptime(f"{completed_date} {completed_time}", "%Y-%m-%d %H:%M")
+    completed_datetime = datetime.strptime(f"{completed_date} {completed_time}", "%Y-%m-%d %H:%M") if completed_date and completed_time else None
 
-    # report 테이블에 insert
     report = Report(
-        create_by=1,
+        create_by=user_id,
         report_type="log",
         created_at=datetime.now()
     )
@@ -321,7 +319,6 @@ async def submit_log(
     db.commit()
     db.refresh(report)
 
-    # log_report 테이블에 insert
     log_report = LogReport(
         report_id=report.report_id,
         manager=manager,
@@ -341,6 +338,7 @@ async def submit_log(
     db.commit()
 
     return RedirectResponse(url="/log_reports", status_code=303)
+
 
 
 
@@ -393,21 +391,54 @@ async def submit_log(
 #     })
 
 
-@app.get("/msp_reports/download")
-async def download_msp_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
+@app.get("/reports/download")
+async def download_msp_csv(
+    start_date: str = "",
+    end_date: str = "",
+    manager: str = "",
+    requester: str = "",
+    status: str = "",
+    client_name: str = "",
+    system_name: str = "",
+    target_env: str = "",
+    request_type: str = "",
+    search: str = "",
+    db: Session = Depends(get_db)
+):
+    query = db.query(MspReport)
 
-    reports = db.query(MspReport).filter(MspReport.request_date.between(start, end)).all()
+    if manager:
+        query = query.filter(MspReport.manager.contains(manager))
+    if requester:
+        query = query.filter(MspReport.requester.contains(requester))
+    if status:
+        query = query.filter(MspReport.status == status)
+    if client_name:
+        query = query.filter(MspReport.client_name.contains(client_name))
+    if system_name:
+        query = query.filter(MspReport.system_name.contains(system_name))
+    if target_env:
+        query = query.filter(MspReport.target_env.contains(target_env))
+    if request_type:
+        query = query.filter(MspReport.request_type.contains(request_type))
+    if start_date and end_date:
+        query = query.filter(
+            MspReport.request_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
+        )
+    if search:
+        query = query.filter(
+            MspReport.client_name.contains(search) |
+            MspReport.system_name.contains(search) |
+            MspReport.manager.contains(search)
+        )
 
+    reports = query.all()
     output = io.StringIO()
     writer = csv.writer(output)
-
-    # [✅ 올바른 헤더 순서]
     writer.writerow([
         "요청일자", "고객사", "시스템명", "대상 환경",
-        "요청자", "요청유형", "요청내용", "목적",
-        "담당자", "상태", "완료일자", "응답", "비고"
+        "요청자", "요청유형", "요청내용", "참고사항",
+        "담당자", "상태", "완료일자", "답변내용", "비고"
     ])
 
     for r in reports:
@@ -428,28 +459,61 @@ async def download_msp_csv(request: Request, start_date: str, end_date: str, db:
         ])
 
     output.seek(0)
-
-    # BOM 추가해서 한글 깨짐 방지
     bom = '\ufeff'
-    csv_content = bom + output.getvalue()
-
     return Response(
-        content=csv_content,
+        content=bom + output.getvalue(),
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": "attachment; filename=msp_reports.csv"}
     )
 
 
-@app.get("/error_reports/download")
-async def download_error_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
 
-    reports = db.query(ErrorReport).filter(ErrorReport.error_start_date.between(start, end)).all()
+
+
+@app.get("/error_reports/download")
+async def download_error_csv(
+    start_date: str = "",
+    end_date: str = "",
+    manager: str = "",
+    status: str = "",
+    client_name: str = "",
+    system_name: str = "",
+    target_env: str = "",
+    target_component: str = "",
+    search: str = "",
+    db: Session = Depends(get_db)
+):
+    query = db.query(ErrorReport)
+
+    if manager:
+        query = query.filter(ErrorReport.manager.contains(manager))
+    if status:
+        query = query.filter(ErrorReport.status == status)
+    if client_name:
+        query = query.filter(ErrorReport.client_name.contains(client_name))
+    if system_name:
+        query = query.filter(ErrorReport.system_name.contains(system_name))
+    if target_env:
+        query = query.filter(ErrorReport.target_env.contains(target_env))
+    if target_component:
+        query = query.filter(ErrorReport.target_component.contains(target_component))
+    if start_date and end_date:
+        query = query.filter(ErrorReport.error_start_date.between(start_date + " 00:00:00", end_date + " 23:59:59"))
+    if search:
+        query = query.filter(
+            ErrorReport.client_name.contains(search) |
+            ErrorReport.system_name.contains(search) |
+            ErrorReport.manager.contains(search)
+        )
+
+    reports = query.all()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["장애일자", "고객사", "시스템명", "대상 환경", "장애대상", "고객 영향도", "장애내용", "장애원인", "조치내용", "담당자", "상태", "장애종료일자", "비고"])
+    writer.writerow([
+        "장애일자", "고객사", "시스템명", "대상 환경", "장애대상", "고객 영향",
+        "장애내용", "장애원인", "조치내용", "담당자", "상태", "장애종료일자", "비고"
+    ])
 
     for r in reports:
         writer.writerow([
@@ -477,16 +541,54 @@ async def download_error_csv(request: Request, start_date: str, end_date: str, d
     )
 
 
-@app.get("/log_reports/download")
-async def download_log_csv(request: Request, start_date: str, end_date: str, db: Session = Depends(get_db)):
-    start = datetime.strptime(start_date, "%Y-%m-%d")
-    end = datetime.strptime(end_date, "%Y-%m-%d")
 
-    reports = db.query(LogReport).filter(LogReport.log_date.between(start, end)).all()
+
+
+
+@app.get("/log_reports/download")
+async def download_log_csv(
+    start_date: str = "",
+    end_date: str = "",
+    manager: str = "",
+    status: str = "",
+    client_name: str = "",
+    system_name: str = "",
+    target_env: str = "",
+    log_type: str = "",
+    search: str = "",
+    db: Session = Depends(get_db)
+):
+    query = db.query(LogReport)
+
+    if manager:
+        query = query.filter(LogReport.manager.contains(manager))
+    if status:
+        query = query.filter(LogReport.status == status)
+    if client_name:
+        query = query.filter(LogReport.client_name.contains(client_name))
+    if system_name:
+        query = query.filter(LogReport.system_name.contains(system_name))
+    if target_env:
+        query = query.filter(LogReport.target_env.contains(target_env))
+    if log_type:
+        query = query.filter(LogReport.log_type.contains(log_type))
+    if start_date and end_date:
+        query = query.filter(LogReport.log_date.between(start_date + " 00:00:00", end_date + " 23:59:59"))
+    if search:
+        query = query.filter(
+            LogReport.client_name.contains(search) |
+            LogReport.system_name.contains(search) |
+            LogReport.manager.contains(search)
+        )
+
+    reports = query.all()
 
     output = io.StringIO()
     writer = csv.writer(output)
-    writer.writerow(["로그일자", "고객사", "시스템명", "대상 환경", "유형", "내용", "조치", "담당자", "상태", "완료일자", "요약", "비고"])
+    writer.writerow([
+        "일자", "고객사", "시스템명", "대상 환경", "유형",
+        "내용", "조치", "담당자", "상태", "완료일자", "요약", "비고"
+    ])
 
     for r in reports:
         writer.writerow([
@@ -512,28 +614,7 @@ async def download_log_csv(request: Request, start_date: str, end_date: str, db:
         headers={"Content-Disposition": "attachment; filename=log_reports.csv"}
     )
 
-# 수정폼 보여주기
-@app.get("/report/{report_id}/edit", response_class=HTMLResponse)
-async def report_edit_page(request: Request, report_id: int, db: Session = Depends(get_db)):
-    report_entry = db.query(Report).filter(Report.report_id == report_id).first()
-    if not report_entry:
-        raise HTTPException(status_code=404, detail="Report not found")
 
-    report_type = report_entry.report_type
-    if report_type == "msp":
-        report = db.query(MspReport).filter(MspReport.report_id == report_id).first()
-    elif report_type == "error":
-        report = db.query(ErrorReport).filter(ErrorReport.report_id == report_id).first()
-    elif report_type == "log":
-        report = db.query(LogReport).filter(LogReport.report_id == report_id).first()
-    else:
-        raise HTTPException(status_code=400, detail="Invalid report type")
-
-    return templates.TemplateResponse("report/report_edit.html", {
-        "request": request,
-        "report_type": report_type,
-        "report": report
-    })
 
 
 # 수정 저장 처리
@@ -675,10 +756,10 @@ def report_list(
     offset = (page - 1) * limit
     query = db.query(MspReport)
 
-    if manager:
-        query = query.filter(MspReport.manager.contains(manager))
     if requester:
         query = query.filter(MspReport.requester.contains(requester))
+    if manager:
+        query = query.filter(MspReport.manager.contains(manager))
     if status:
         query = query.filter(MspReport.status == status)
     if client_name:
@@ -693,18 +774,30 @@ def report_list(
         query = query.filter(
             MspReport.request_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
         )
+
+    # ✅ 통합검색: 여러 필드에 OR 조건으로 적용
+    from sqlalchemy import or_
     if search:
+        keyword = f"%{search}%"
         query = query.filter(
-            MspReport.client_name.contains(search) |
-            MspReport.system_name.contains(search) |
-            MspReport.manager.contains(search)
+            or_(
+                MspReport.client_name.like(keyword),
+                MspReport.system_name.like(keyword),
+                MspReport.manager.like(keyword),
+                MspReport.requester.like(keyword),
+                MspReport.request_type.like(keyword),
+                MspReport.request_content.like(keyword),
+                MspReport.purpose.like(keyword),
+                MspReport.response.like(keyword),
+                MspReport.etc.like(keyword),
+                MspReport.status.like(keyword)
+            )
         )
 
     all_reports = query.all()
 
-    # 자연 정렬이 필요한 필드
-    natural_sort_fields = ["client_name", "system_name", "manager", "request_type", "status"]
-
+    # 자연 정렬
+    natural_sort_fields = ["client_name", "system_name", "manager", "request_type", "status", "requester"]
     if sort in natural_sort_fields:
         all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
     elif hasattr(MspReport, sort):
@@ -724,6 +817,7 @@ def report_list(
         "status": status,
         "client_name": client_name,
         "system_name": system_name,
+        "requester": requester,
         "target_env": target_env,
         "request_type": request_type,
         "start_date": start_date,
@@ -751,6 +845,7 @@ def report_list(
 
 
 
+
 @app.get("/error_reports", response_class=HTMLResponse)
 def error_report_list(
     request: Request,
@@ -761,6 +856,9 @@ def error_report_list(
     client_name: str = "",
     system_name: str = "",
     target_env: str = "",
+    target_component: str = "",
+    start_date: str = "",
+    end_date: str = "",
     search: str = "",
     sort: str = "error_start_date",
     direction: str = "desc",
@@ -779,15 +877,34 @@ def error_report_list(
         query = query.filter(ErrorReport.system_name.contains(system_name))
     if target_env:
         query = query.filter(ErrorReport.target_env.contains(target_env))
-    if search:
+    if target_component:
+        query = query.filter(ErrorReport.target_component.contains(target_component))
+    if start_date and end_date:
         query = query.filter(
-            ErrorReport.client_name.contains(search) |
-            ErrorReport.system_name.contains(search) |
-            ErrorReport.manager.contains(search)
+            ErrorReport.error_start_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
+        )
+
+    # ✅ 통합검색
+    from sqlalchemy import or_
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                ErrorReport.client_name.like(keyword),
+                ErrorReport.system_name.like(keyword),
+                ErrorReport.manager.like(keyword),
+                ErrorReport.status.like(keyword),
+                ErrorReport.target_env.like(keyword),
+                ErrorReport.target_component.like(keyword),
+                ErrorReport.customer_impact.like(keyword),
+                ErrorReport.error_info.like(keyword),
+                ErrorReport.error_reason.like(keyword),
+                ErrorReport.action_taken.like(keyword),
+                ErrorReport.etc.like(keyword)
+            )
         )
 
     all_reports = query.all()
-
     if sort in ["client_name", "system_name", "manager"]:
         all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
     elif hasattr(ErrorReport, sort):
@@ -807,12 +924,14 @@ def error_report_list(
         "client_name": client_name,
         "system_name": system_name,
         "target_env": target_env,
+        "target_component": target_component,
+        "start_date": start_date,
+        "end_date": end_date,
         "search": search,
         "sort": sort,
         "direction": direction
     }
-    filtered_query = {k: v for k, v in query_dict.items() if v}
-    query_string = urlencode(filtered_query)
+    query_string = urlencode({k: v for k, v in query_dict.items() if v})
 
     return templates.TemplateResponse("report/error_report_list.html", {
         "request": request,
@@ -828,6 +947,8 @@ def error_report_list(
 
 
 
+
+
 @app.get("/log_reports", response_class=HTMLResponse)
 def log_report_list(
     request: Request,
@@ -838,6 +959,9 @@ def log_report_list(
     client_name: str = "",
     system_name: str = "",
     target_env: str = "",
+    log_type: str = "",
+    start_date: str = "",
+    end_date: str = "",
     search: str = "",
     sort: str = "log_date",
     direction: str = "desc",
@@ -856,15 +980,33 @@ def log_report_list(
         query = query.filter(LogReport.system_name.contains(system_name))
     if target_env:
         query = query.filter(LogReport.target_env.contains(target_env))
-    if search:
+    if log_type:
+        query = query.filter(LogReport.log_type.contains(log_type))
+    if start_date and end_date:
         query = query.filter(
-            LogReport.client_name.contains(search) |
-            LogReport.system_name.contains(search) |
-            LogReport.manager.contains(search)
+            LogReport.log_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
+        )
+
+    # ✅ 통합검색
+    from sqlalchemy import or_
+    if search:
+        keyword = f"%{search}%"
+        query = query.filter(
+            or_(
+                LogReport.client_name.like(keyword),
+                LogReport.system_name.like(keyword),
+                LogReport.manager.like(keyword),
+                LogReport.status.like(keyword),
+                LogReport.target_env.like(keyword),
+                LogReport.log_type.like(keyword),
+                LogReport.content.like(keyword),
+                LogReport.action.like(keyword),
+                LogReport.summary.like(keyword),
+                LogReport.etc.like(keyword)
+            )
         )
 
     all_reports = query.all()
-
     if sort in ["client_name", "system_name", "manager"]:
         all_reports.sort(key=lambda x: natural_keys(getattr(x, sort) or ""), reverse=(direction == "desc"))
     elif hasattr(LogReport, sort):
@@ -884,12 +1026,14 @@ def log_report_list(
         "client_name": client_name,
         "system_name": system_name,
         "target_env": target_env,
+        "log_type": log_type,
+        "start_date": start_date,
+        "end_date": end_date,
         "search": search,
         "sort": sort,
         "direction": direction
     }
-    filtered_query = {k: v for k, v in query_dict.items() if v}
-    query_string = urlencode(filtered_query)
+    query_string = urlencode({k: v for k, v in query_dict.items() if v})
 
     return templates.TemplateResponse("report/log_reports.html", {
         "request": request,
@@ -901,4 +1045,203 @@ def log_report_list(
         "query_string": query_string,
         "current_sort": sort,
         "current_direction": direction
+    })
+
+
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def user_management_page(request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+    
+    from sqlalchemy.orm import joinedload
+    users = db.query(User).options(joinedload(User.clients)).all()
+    return templates.TemplateResponse("admin/user_list.html", {
+        "request": request,
+        "users": users
+    })
+
+@app.get("/admin/users/{user_id}/edit", response_class=HTMLResponse)
+def edit_user_page(user_id: int, request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+    
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return templates.TemplateResponse("admin/user_edit.html", {
+        "request": request,
+        "user": user
+    })
+
+
+@app.post("/admin/users/{user_id}/edit")
+async def update_user_info(
+    user_id: int,
+    username: str = Form(...),
+    name: str = Form(...),
+    email: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.username = username
+    user.name = name
+    user.email = email
+    db.commit()
+
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@app.post("/admin/users/{user_id}/delete")
+async def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.user_id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    db.delete(user)
+    db.commit()
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+
+@app.get("/profile", response_class=HTMLResponse)
+async def profile(request: Request, db: Session = Depends(get_db)):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return RedirectResponse("/login", status_code=303)
+
+    user = db.query(User).filter(User.user_id == user_id).first()
+    return templates.TemplateResponse("user/profile.html", {"request": request, "user": user})
+
+
+@app.get("/change_password", response_class=HTMLResponse)
+async def change_password_page(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login", status_code=303)
+    return templates.TemplateResponse("user/change_password.html", {"request": request, "error": None})
+
+
+@app.post("/change_password", response_class=HTMLResponse)
+async def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+    confirm_password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login", status_code=303)
+
+    user_id = request.session["user_id"]
+    user = db.query(User).filter(User.user_id == user_id).first()
+
+    if not user or user.password != current_password:
+        return templates.TemplateResponse("user/change_password.html", {
+            "request": request,
+            "error": "현재 비밀번호가 일치하지 않습니다."
+        })
+
+    if new_password != confirm_password:
+        return templates.TemplateResponse("user/change_password.html", {
+            "request": request,
+            "error": "새 비밀번호가 일치하지 않습니다."
+        })
+
+    user.password = new_password
+    db.commit()
+
+    return RedirectResponse(url="/myinfo", status_code=303)
+
+
+@app.get("/admin/stats", response_class=HTMLResponse)
+def admin_stats(request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+
+    total_reports = db.query(Report).count()
+    last_7_days = datetime.today() - timedelta(days=7)
+    last_30_days = datetime.today() - timedelta(days=30)
+    recent_7 = db.query(Report).filter(Report.created_at >= last_7_days).count()
+    recent_30 = db.query(Report).filter(Report.created_at >= last_30_days).count()
+
+    # 상태 분포
+    status_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.status).all():
+            status_counts[row[0]] += 1
+
+    # 기업별 리포트 개수
+    client_summary = defaultdict(lambda: {"msp": 0, "error": 0, "log": 0})
+    for row in db.query(MspReport.client_name).all():
+        client_summary[row[0]]["msp"] += 1
+    for row in db.query(ErrorReport.client_name).all():
+        client_summary[row[0]]["error"] += 1
+    for row in db.query(LogReport.client_name).all():
+        client_summary[row[0]]["log"] += 1
+
+    # 담당자별 처리 현황
+    manager_counts = defaultdict(lambda: {"count": 0, "done": 0})
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.manager, model.status).all():
+            manager_counts[row[0]]["count"] += 1
+            if row[1] == "완료":
+                manager_counts[row[0]]["done"] += 1
+
+    # 시스템별 리포트 수
+    system_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.system_name).all():
+            system_counts[row[0]] += 1
+
+    # ✅ 월별 리포트 수 (msp: request_date, error: error_start_date, log: log_date)
+    from sqlalchemy import extract, func
+    monthly_counts = defaultdict(lambda: {"msp": 0, "error": 0, "log": 0})
+
+    for year, month, count in db.query(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date),
+        func.count()
+    ).group_by(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["msp"] += count
+
+    for year, month, count in db.query(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date),
+        func.count()
+    ).group_by(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["error"] += count
+
+    for year, month, count in db.query(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date),
+        func.count()
+    ).group_by(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["log"] += count
+
+    return templates.TemplateResponse("admin/stats.html", {
+        "request": request,
+        "total_reports": total_reports,
+        "recent_7": recent_7,
+        "recent_30": recent_30,
+        "status_counts": dict(status_counts),
+        "client_summary": dict(client_summary),
+        "manager_counts": dict(manager_counts),
+        "system_counts": dict(system_counts),
+        "monthly_counts": dict(sorted(monthly_counts.items()))
     })

@@ -148,14 +148,15 @@
       </div>
 
       <div class="download-link">
-        <button onclick="toggleDownload()" class="csv-download-btn">CSV 다운로드</button>
-        <form method="get" action="/log_reports/download" id="download-form" style="display: none; margin-top: 10px;">
-          <input type="date" name="start_date" required>
-          <span>~</span>
-          <input type="date" name="end_date" required>
-          <button type="submit" class="csv-download-btn">다운로드</button>
-        </form>
-      </div>
+  <form method="get" action="/log_reports/download">
+    {% for k, v in request.query_params.items() %}
+      <input type="hidden" name="{{ k }}" value="{{ v }}">
+    {% endfor %}
+    <button type="submit" class="csv-download-btn">CSV 다운로드</button>
+  </form>
+</div>
+
+
     </div>
   </div>
 </body>

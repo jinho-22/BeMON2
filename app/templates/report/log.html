@@ -13,17 +13,18 @@
       <div class="section">
         <h2>기본 정보</h2>
         <div class="form-row">
-          <label>담당자*</label><input type="text" name="manager">
+          <label>담당자*</label><input type="text" name="manager" required>
           <label>상태</label>
           <select name="status">
+            <option value="">--선택--</option>
             <option value="대기">대기</option>
             <option value="진행 중">진행 중</option>
             <option value="완료">완료</option>
           </select>
         </div>
         <div class="form-row">
-          <label>작성일자*</label><input type="date" name="log_date">
-          <label>작성시간*</label><input type="time" name="log_time">
+          <label>작성일자*</label><input type="date" name="log_date" required>
+          <label>작성시간*</label><input type="time" name="log_time" required>
         </div>
         <div class="form-row">
           <label>완료일자</label><input type="date" name="completed_date">
@@ -34,19 +35,50 @@
       <div class="section">
         <h2>고객 및 시스템 정보</h2>
         <div class="form-row">
-          <label>고객사*</label><input type="text" name="client_name">
-          <label>시스템명*</label><input type="text" name="system_name">
+          <label>고객사</label>
+          <select name="client_name">
+            <option value="">--선택--</option>
+            <option value="개인정보보호위원회">개인정보보호위원회</option>
+            <option value="소프트보울">소프트보울</option>
+          </select>
+
+          <label>시스템명</label>
+          <select name="system_name">
+            <option value="">--선택--</option>
+            <option value="마이데이터 지원 플랫폼">마이데이터 지원 플랫폼</option>
+            <option value="전국육아보육종합지원센터">전국육아보육종합지원센터</option>
+          </select>
         </div>
         <div class="form-row">
-          <label>대상 시스템/환경</label><input type="text" name="target_env">
-          <label>유형*</label><input type="text" name="log_type">
+          <label>대상 시스템/환경</label>
+          <select name="target_env">
+            <option value="">--선택--</option>
+            <option value="NCP">NCP</option>
+            <option value="KTC">KTC</option>
+            <option value="NHN">NHN</option>
+          </select>
+
+          <label>유형*</label>
+          <select name="log_type" required>
+            <option value="">--선택--</option>
+            <option value="당직">당직</option>
+            <option value="네트워크">네트워크</option>
+            <option value="인프라">인프라</option>
+            <option value="애플리케이션">애플리케이션</option>
+            <option value="SSL_VPN">SSL_VPN</option>
+            <option value="계정">계정</option>
+            <option value="서버">서버</option>
+            <option value="백업">백업</option>
+            <option value="3rd Party Solution">3rd Party Solution</option>
+            <option value="모니터링 알람">모니터링 알람</option>
+          </select>
         </div>
       </div>
 
       <div class="section">
         <h2>상세 정보</h2>
         <div class="form-row">
-          <label>작업내용*</label><textarea name="content"></textarea>
+          <label>작업내용*</label><textarea name="content" required placeholder="예) 당직 업무간 특이사항 X"></textarea>
         </div>
         <div class="form-row">
           <label>조치내용</label><textarea name="action"></textarea>

@@ -94,13 +94,14 @@
             {% endmacro %}
         
             {{ sort_link('error_start_date', '장애일자') }}
+            <th>장애시간</th>
             {{ sort_link('client_name', '고객사') }}
             {{ sort_link('system_name', '시스템명') }}
             {{ sort_link('target_env', '대상환경') }}
             {{ sort_link('target_component', '장애대상') }}
             {{ sort_link('status', '상태') }}
             {{ sort_link('manager', '담당자') }}
-            {{ sort_link('error_info', '장애내용') }}
+            <th>장애내용</th>
           </tr>
         </thead>
         
@@ -108,6 +109,7 @@
           {% for report in reports %}
           <tr>
             <td><a href="/report/{{ report.report_id }}?type=error">{{ report.error_start_date.strftime('%Y-%m-%d') if report.error_start_date }}</a></td>
+            <td>{{ report.error_start_date.strftime('%H:%M') if report.error_start_date }}</td>
             <td>{{ report.client_name }}</td>
             <td>{{ report.system_name }}</td>
             <td>{{ report.target_env }}</td>
@@ -147,21 +149,16 @@
       </div>
 
       <div class="download-link">
-        <button onclick="toggleDownload()" class="csv-download-btn">CSV 다운로드</button>
-        <form method="get" action="/error_reports/download" id="download-form" style="display: none; margin-top: 10px;">
-          <input type="date" name="start_date" required>
-          <span>~</span>
-          <input type="date" name="end_date" required>
-          <button type="submit" class="csv-download-btn">다운로드</button>
-        </form>
-      </div>
+  <form method="get" action="/error_reports/download">
+    {% for k, v in request.query_params.items() %}
+      <input type="hidden" name="{{ k }}" value="{{ v }}">
+    {% endfor %}
+    <button type="submit" class="csv-download-btn">CSV 다운로드</button>
+  </form>
+</div>
 
-      <script>
-        function toggleDownload() {
-          const form = document.getElementById('download-form');
-          form.style.display = form.style.display === 'none' ? 'flex' : 'none';
-        }
-      </script>
+
+
 
     </div>
   </div>

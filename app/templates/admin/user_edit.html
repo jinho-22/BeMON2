@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>사용자 수정</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  <div class="container">
+    <h2>사용자 수정</h2>
+
+    <!-- 사용자 정보 수정 -->
+    <form method="post" action="/admin/users/{{ user.user_id }}/edit">
+      <div class="form-row">
+        <label>아이디:</label>
+        <input type="text" name="username" value="{{ user.username }}" required>
+      </div>
+      <div class="form-row">
+        <label>이름:</label>
+        <input type="text" name="name" value="{{ user.name }}" required>
+      </div>
+      <div class="form-row">
+        <label>이메일:</label>
+        <input type="email" name="email" value="{{ user.email or '' }}">
+      </div>
+      <div class="button-group">
+        <button type="submit">저장</button>
+        <a href="/admin/users"><button type="button">취소</button></a>
+      </div>
+    </form>
+
+    <!-- 사용자 삭제 (분리된 form) -->
+    <form method="post" action="/admin/users/{{ user.user_id }}/delete" onsubmit="return confirm('정말 삭제하시겠습니까?');" style="margin-top: 10px;">
+      <button type="submit" style="background-color: red; color: white;">삭제</button>
+    </form>
+  </div>
+</body>
+</html>

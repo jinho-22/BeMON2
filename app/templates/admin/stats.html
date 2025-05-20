@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>관리자 통계</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+{% include 'layout/header.html' %}
+<main class="container mx-auto px-4 py-6">
+  <h1 class="text-2xl font-bold mb-6">📊 관리자 통계 대시보드</h1>
+
+  <!-- 전체 요약 통계 -->
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold mb-3">1. 전체 요약 통계</h2>
+    <div class="bg-gray-50 border rounded p-4">
+      <ul class="list-disc pl-6 space-y-1">
+        <li>총 리포트 수: <span class="font-medium">{{ total_reports }}</span></li>
+        <li>최근 7일 신규 리포트: <span class="font-medium">{{ recent_7 }}</span>건</li>
+        <li>최근 30일 신규 리포트: <span class="font-medium">{{ recent_30 }}</span>건</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 기업별 리포트 현황 -->
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold mb-3">2. 기업별 리포트 현황</h2>
+    <div class="overflow-x-auto">
+      <table class="table-auto w-full border text-center">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="border px-2 py-2">기업명</th>
+            <th class="border px-2 py-2">작업</th>
+            <th class="border px-2 py-2">장애</th>
+            <th class="border px-2 py-2">일지</th>
+            <th class="border px-2 py-2">총합</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for client, counts in client_summary.items() %}
+          <tr class="border-t">
+            <td class="border px-2 py-2">{{ client }}</td>
+            <td class="border px-2 py-2">{{ counts.msp }}</td>
+            <td class="border px-2 py-2">{{ counts.error }}</td>
+            <td class="border px-2 py-2">{{ counts.log }}</td>
+            <td class="border px-2 py-2">{{ counts.msp + counts.error + counts.log }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 담당자별 처리 현황 -->
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold mb-3">3. 담당자별 처리 현황</h2>
+    <div class="overflow-x-auto">
+      <table class="table-auto w-full border text-center">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="border px-2 py-2">담당자</th>
+            <th class="border px-2 py-2">처리 수</th>
+            <th class="border px-2 py-2">완료율</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for manager, data in manager_counts.items() %}
+          <tr class="border-t">
+            <td class="border px-2 py-2">{{ manager }}</td>
+            <td class="border px-2 py-2">{{ data.count }}</td>
+            <td class="border px-2 py-2">
+              {{ '%.0f' % ((data.done / data.count) * 100) if data.count > 0 else '0' }}%
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 상태별 리포트 분포 -->
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold mb-3">4. 상태별 리포트 분포</h2>
+    <div class="bg-gray-50 border rounded p-4">
+      <ul class="list-disc pl-6 space-y-1">
+        {% for status, count in status_counts.items() %}
+          <li>{{ status }}: <span class="font-medium">{{ count }}</span>건</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+  <!-- 시스템별 리포트 수 -->
+  <section class="mb-8">
+    <h2 class="text-xl font-semibold mb-3">5. 시스템별 리포트 수</h2>
+    <div class="bg-gray-50 border rounded p-4">
+      <ul class="list-disc pl-6 space-y-1">
+        {% for system, count in system_counts.items() %}
+          <li>{{ system }}: <span class="font-medium">{{ count }}</span>건</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+
+    <!-- 6. 월별 작성 리포트 수 -->
+  <section>
+    <h2 class="text-xl font-semibold mb-3">6. 월별 작성 리포트 수</h2>
+    <div class="overflow-x-auto">
+      <table class="table-auto border w-full text-center">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="border px-2 py-2">월</th>
+            <th class="border px-2 py-2">작업(MSP)</th>
+            <th class="border px-2 py-2">장애(Error)</th>
+            <th class="border px-2 py-2">일지(Log)</th>
+            <th class="border px-2 py-2">총합</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for month, counts in monthly_counts.items() %}
+          <tr>
+            <td class="border px-2 py-2">{{ month }}</td>
+            <td class="border px-2 py-2">{{ counts.msp }}</td>
+            <td class="border px-2 py-2">{{ counts.error }}</td>
+            <td class="border px-2 py-2">{{ counts.log }}</td>
+            <td class="border px-2 py-2">{{ counts.msp + counts.error + counts.log }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+
+</body>
+</html>

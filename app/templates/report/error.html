@@ -14,8 +14,9 @@
         <h2>기본 정보</h2>
         <div class="form-row">
           <label>담당자*</label><input type="text" name="manager" required>
-          <label>상태</label>
-          <select name="status">
+          <label>상태*</label>
+          <select name="status" required>
+            <option value="">--선택--</option>
             <option value="대기">대기</option>
             <option value="진행 중">진행 중</option>
             <option value="완료">완료</option>
@@ -34,11 +35,29 @@
       <div class="section">
         <h2>고객 및 시스템 정보</h2>
         <div class="form-row">
-          <label>고객사*</label><input type="text" name="client_name" required>
-          <label>시스템명*</label><input type="text" name="system_name" required>
+          <label>고객사*</label>
+          <select name="client_name" required>
+            <option value="">--선택--</option>
+            <option value="개인정보보호위원회">개인정보보호위원회</option>
+            <option value="소프트보울">소프트보울</option>
+          </select>
+
+          <label>시스템명*</label>
+          <select name="system_name" required>
+            <option value="">--선택--</option>
+            <option value="마이데이터 지원 플랫폼">마이데이터 지원 플랫폼</option>
+            <option value="전국육아보육종합지원센터">전국육아보육종합지원센터</option>
+          </select>
         </div>
         <div class="form-row">
-          <label>대상 시스템/환경</label><input type="text" name="target_env">
+          <label>대상 시스템/환경*</label>
+          <select name="target_env" required>
+            <option value="">--선택--</option>
+            <option value="NCP">NCP</option>
+            <option value="KTC">KTC</option>
+            <option value="NHN">NHN</option>
+          </select>
+
           <label>장애대상*</label><input type="text" name="target_component" required>
         </div>
       </div>

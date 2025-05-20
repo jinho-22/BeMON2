@@ -5,20 +5,6 @@
   <title>작업 리포트 상세보기</title>
   <link rel="stylesheet" href="/static/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script>
-    function downloadPDF() {
-      const { jsPDF } = window.jspdf;
-      const doc = new jsPDF();
-      const content = document.querySelector('.container');
-      doc.html(content, {
-        callback: function (doc) {
-          doc.save('report.pdf');
-        },
-        x: 10,
-        y: 10
-      });
-    }
-  </script>
 </head>
 <body>
   {% include 'layout/header.html' %}
@@ -71,8 +57,8 @@
 
   <div class="section">
     <h2>장애 내용 및 조치</h2>
-    <p><strong>고객 영향:</strong><br>{{ report.customer_impact }}</p>
     <p><strong>장애 내용:</strong><br>{{ report.error_info }}</p>
+    <p><strong>고객 영향:</strong><br>{{ report.customer_impact }}</p>
     <p><strong>장애 원인:</strong><br>{{ report.error_reason }}</p>
     <p><strong>조치 내용:</strong><br>{{ report.action_taken }}</p>
     <p><strong>기타 사항:</strong><br>{{ report.etc }}</p>
@@ -113,8 +99,6 @@
   <form method="post" action="/report/{{ report.report_id }}/delete" style="display: inline;">
     <button type="submit" onclick="return confirm('정말 삭제하시겠습니까?')">삭제</button>
   </form>
-
-  <button onclick="downloadPDF()">pdf 다운로드</button>
 </div>
 
   </div>

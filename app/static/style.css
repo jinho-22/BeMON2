@@ -430,3 +430,9 @@ table th {
 #filter-section .button-group button:hover {
   background-color: #f0f0f0;
 }
+
+body > div > div > div.download-link > a{
+  text-decoration: none;
+  list-style: none;
+  color: #fff;
+}
