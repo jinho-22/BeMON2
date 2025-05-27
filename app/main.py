@@ -1,24 +1,47 @@
-from fastapi import FastAPI, Form, Request, Depends, HTTPException, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+# FastAPI 및 요청 관련
+from fastapi import FastAPI, Form, Request, Depends, HTTPException, APIRouter
+from fastapi.responses import (
+    HTMLResponse,
+    RedirectResponse,
+    StreamingResponse,
+    JSONResponse,
+    FileResponse,
+    Response  # CSV 다운로드용
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi import APIRouter, Request, Depends
+
+# 미들웨어
+from starlette.middleware.sessions import SessionMiddleware
+
+# SQLAlchemy ORM
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, func
+from sqlalchemy import and_, or_, func, text, extract, asc, desc
+
+# DB 모델
 from app.database import get_db
 from app.models.models import Report, ErrorReport, MspReport, LogReport, User
-from fastapi.templating import Jinja2Templates
-from math import ceil
+
+# 유틸리티
 from datetime import datetime, timedelta
+from math import ceil
+from urllib.parse import urlencode
+from collections import defaultdict
 import io
 import csv
-from starlette.middleware.sessions import SessionMiddleware
-from urllib.parse import urlencode
-from natsort import natsorted
-from sqlalchemy import text
 import re
-from fastapi.responses import JSONResponse
-from collections import defaultdict
+import tempfile
+
+# 외부 라이브러리
+from natsort import natsorted
+from weasyprint import HTML  # PDF 변환
+
+# 기타
+import os  # 필요시 파일 처리용
+
+
+
+
 
 
 
@@ -614,7 +637,32 @@ async def download_log_csv(
         headers={"Content-Disposition": "attachment; filename=log_reports.csv"}
     )
 
+@app.get("/report/{report_id}/edit")
+async def edit_report_form(request: Request, report_id: int, db: Session = Depends(get_db)):
+    report = db.query(Report).filter(Report.report_id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="리포트를 찾을 수 없습니다.")
 
+    report_type = report.report_type
+    detail = None
+
+    if report_type == "msp":
+        detail = db.query(MspReport).filter(MspReport.report_id == report_id).first()
+    elif report_type == "error":
+        detail = db.query(ErrorReport).filter(ErrorReport.report_id == report_id).first()
+    elif report_type == "log":
+        detail = db.query(LogReport).filter(LogReport.report_id == report_id).first()
+    else:
+        raise HTTPException(status_code=400, detail="알 수 없는 리포트 유형입니다.")
+
+    if not detail:
+        raise HTTPException(status_code=404, detail="상세 리포트를 찾을 수 없습니다.")
+
+    return templates.TemplateResponse("report/report_edit.html", {
+        "request": request,
+        "report": detail,
+        "report_type": report_type
+    })
 
 
 # 수정 저장 처리
@@ -698,6 +746,8 @@ async def report_edit(
     db.commit()
 
     return RedirectResponse(url=f"/report/{report_id}", status_code=303)
+
+
 
 
 # 삭제 처리
@@ -1197,7 +1247,13 @@ def admin_stats(request: Request, db: Session = Depends(get_db)):
         for row in db.query(model.system_name).all():
             system_counts[row[0]] += 1
 
-    # ✅ 월별 리포트 수 (msp: request_date, error: error_start_date, log: log_date)
+    # 장애 대상별 장애 건수
+    component_counts = defaultdict(int)
+    for row in db.query(ErrorReport.target_component).all():
+        if row[0]:
+            component_counts[row[0]] += 1
+
+    # ✅ 월별 리포트 수
     from sqlalchemy import extract, func
     monthly_counts = defaultdict(lambda: {"msp": 0, "error": 0, "log": 0})
 
@@ -1243,5 +1299,184 @@ def admin_stats(request: Request, db: Session = Depends(get_db)):
         "client_summary": dict(client_summary),
         "manager_counts": dict(manager_counts),
         "system_counts": dict(system_counts),
+        "monthly_counts": dict(sorted(monthly_counts.items())),
+        "component_counts": dict(component_counts)  # ✅ 장애대상별 건수 추가
+    })
+
+
+@app.get("/admin/stats/client", response_class=HTMLResponse)
+def client_stats_list(request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+
+    # msp, error, log 리포트에서 고객사 목록 추출
+    msp_clients = db.query(MspReport.client_name).distinct().all()
+    error_clients = db.query(ErrorReport.client_name).distinct().all()
+    log_clients = db.query(LogReport.client_name).distinct().all()
+
+    # set으로 중복 제거 후 정렬
+    clients = sorted(set(row[0] for row in (msp_clients + error_clients + log_clients) if row[0]))
+
+    return templates.TemplateResponse("admin/client_list.html", {
+        "request": request,
+        "clients": clients
+    })
+
+@app.get("/admin/stats/client/{client_name}", response_class=HTMLResponse)
+def client_stats_detail(client_name: str, request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+
+    # 리포트 수
+    msp_count = db.query(MspReport).filter(MspReport.client_name == client_name).count()
+    error_count = db.query(ErrorReport).filter(ErrorReport.client_name == client_name).count()
+    log_count = db.query(LogReport).filter(LogReport.client_name == client_name).count()
+    total = msp_count + error_count + log_count
+
+    # 상태 분포
+    status_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.status).filter(model.client_name == client_name).all():
+            status_counts[row[0]] += 1
+
+    # 시스템별 분포
+    system_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.system_name).filter(model.client_name == client_name).all():
+            system_counts[row[0]] += 1
+
+    # 장애 대상별 분포 (ErrorReport만)
+    component_counts = defaultdict(int)
+    for row in db.query(ErrorReport.target_component).filter(ErrorReport.client_name == client_name).all():
+        if row[0]:
+            component_counts[row[0]] += 1
+
+    # 월별 리포트 수
+    from sqlalchemy import extract, func
+    monthly_counts = defaultdict(lambda: {"msp": 0, "error": 0, "log": 0})
+
+    for year, month, count in db.query(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date),
+        func.count()
+    ).filter(MspReport.client_name == client_name).group_by(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["msp"] += count
+
+    for year, month, count in db.query(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date),
+        func.count()
+    ).filter(ErrorReport.client_name == client_name).group_by(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["error"] += count
+
+    for year, month, count in db.query(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date),
+        func.count()
+    ).filter(LogReport.client_name == client_name).group_by(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["log"] += count
+
+    return templates.TemplateResponse("admin/client_stats.html", {
+        "request": request,
+        "client_name": client_name,
+        "msp_count": msp_count,
+        "error_count": error_count,
+        "log_count": log_count,
+        "total": total,
+        "status_counts": dict(status_counts),
+        "system_counts": dict(system_counts),
+        "component_counts": dict(component_counts),
         "monthly_counts": dict(sorted(monthly_counts.items()))
     })
+
+@app.get("/admin/stats/client/{client_name}/pdf")
+def download_client_pdf(client_name: str, request: Request, db: Session = Depends(get_db)):
+    if request.session.get("username") != "admin":
+        return RedirectResponse(url="/login", status_code=303)
+
+    # 기존 로직과 동일하게 데이터 수집
+    msp_count = db.query(MspReport).filter(MspReport.client_name == client_name).count()
+    error_count = db.query(ErrorReport).filter(ErrorReport.client_name == client_name).count()
+    log_count = db.query(LogReport).filter(LogReport.client_name == client_name).count()
+    total = msp_count + error_count + log_count
+
+    status_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.status).filter(model.client_name == client_name).all():
+            status_counts[row[0]] += 1
+
+    system_counts = defaultdict(int)
+    for model in [MspReport, ErrorReport, LogReport]:
+        for row in db.query(model.system_name).filter(model.client_name == client_name).all():
+            system_counts[row[0]] += 1
+
+    component_counts = defaultdict(int)
+    for row in db.query(ErrorReport.target_component).filter(ErrorReport.client_name == client_name).all():
+        if row[0]:
+            component_counts[row[0]] += 1
+
+    from sqlalchemy import extract
+    monthly_counts = defaultdict(lambda: {"msp": 0, "error": 0, "log": 0})
+
+    for year, month, count in db.query(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date),
+        func.count()
+    ).filter(MspReport.client_name == client_name).group_by(
+        extract('year', MspReport.request_date),
+        extract('month', MspReport.request_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["msp"] += count
+
+    for year, month, count in db.query(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date),
+        func.count()
+    ).filter(ErrorReport.client_name == client_name).group_by(
+        extract('year', ErrorReport.error_start_date),
+        extract('month', ErrorReport.error_start_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["error"] += count
+
+    for year, month, count in db.query(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date),
+        func.count()
+    ).filter(LogReport.client_name == client_name).group_by(
+        extract('year', LogReport.log_date),
+        extract('month', LogReport.log_date)
+    ).all():
+        key = f"{int(year):04d}-{int(month):02d}"
+        monthly_counts[key]["log"] += count
+
+    # HTML 렌더링 → PDF
+    html_content = templates.get_template("admin/client_stats.html").render({
+        "request": request,
+        "client_name": client_name,
+        "msp_count": msp_count,
+        "error_count": error_count,
+        "log_count": log_count,
+        "total": total,
+        "status_counts": dict(status_counts),
+        "system_counts": dict(system_counts),
+        "component_counts": dict(component_counts),
+        "monthly_counts": dict(sorted(monthly_counts.items()))
+    })
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
+        HTML(string=html_content, base_url="http://localhost:8000/static").write_pdf(tmp_file.name) # 운영시 변경 필요
+        return FileResponse(tmp_file.name, filename=f"{client_name}_통계.pdf", media_type="application/pdf")

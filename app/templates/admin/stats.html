@@ -8,7 +8,7 @@
 <body>
 {% include 'layout/header.html' %}
 <main class="container mx-auto px-4 py-6">
-  <h1 class="text-2xl font-bold mb-6">📊 관리자 통계 대시보드</h1>
+  <h1 class="text-2xl font-bold mb-6">관리자 통계 대시보드</h1>
 
   <!-- 전체 요약 통계 -->
   <section class="mb-8">
@@ -130,6 +130,30 @@
       </table>
     </div>
   </section>
+
+    <!-- 7. 장애 대상별 장애 건수 -->
+  <section class="mb-8 mt-10">
+    <h2 class="text-xl font-semibold mb-3">7. 장애 대상별 장애 건수</h2>
+    <div class="overflow-x-auto">
+      <table class="table-auto w-full border text-center">
+        <thead class="bg-gray-100">
+          <tr>
+            <th class="border px-2 py-2">장애 대상</th>
+            <th class="border px-2 py-2">건수</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for component, count in component_counts.items() %}
+          <tr class="border-t">
+            <td class="border px-2 py-2">{{ component }}</td>
+            <td class="border px-2 py-2">{{ count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
 
 </main>
 

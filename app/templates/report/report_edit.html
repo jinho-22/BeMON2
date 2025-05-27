@@ -7,11 +7,11 @@
 </head>
 <body>
   {% include 'layout/header.html' %}
-  
+
   <div class="container">
     <h1>리포트 수정</h1>
 
-    <form method="post" action="/report/{{ report.report_id }}/edit">
+    <form method="post" action="/report/{{ report.report_id }}/edit" onsubmit="return validateForm()">
       
       {% if report_type == "msp" %}
       <div class="section">
@@ -27,13 +27,13 @@
         </div>
         <div class="form-row">
           <label>요청일시</label>
-          <input type="date" name="request_date" value="{{ report.request_date.strftime('%Y-%m-%d') if report.request_date }}">
-          <input type="time" name="request_time" value="{{ report.request_date.strftime('%H:%M') if report.request_date }}">
+          <input type="date" id="request_date" name="request_date" value="{{ report.request_date.strftime('%Y-%m-%d') if report.request_date }}">
+          <input type="time" id="request_time" name="request_time" value="{{ report.request_date.strftime('%H:%M') if report.request_date }}">
         </div>
         <div class="form-row">
           <label>완료일시</label>
-          <input type="date" name="completed_date" value="{{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}">
-          <input type="time" name="completed_time" value="{{ report.completed_date.strftime('%H:%M') if report.completed_date }}">
+          <input type="date" id="completed_date" name="completed_date" value="{{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}">
+          <input type="time" id="completed_time" name="completed_time" value="{{ report.completed_date.strftime('%H:%M') if report.completed_date }}">
         </div>
       </div>
 
@@ -69,22 +69,147 @@
       </div>
 
       {% elif report_type == "error" %}
-      <!-- 장애 리포트 수정폼 (비슷하게 구성) -->
-      (→ 이거 곧 이어서 줄게)
+      <div class="section">
+        <h2>기본 정보</h2>
+        <div class="form-row">
+          <label>담당자</label><input type="text" name="manager" value="{{ report.manager }}">
+          <label>상태</label>
+          <select name="status">
+            <option value="대기" {% if report.status == '대기' %}selected{% endif %}>대기</option>
+            <option value="진행 중" {% if report.status == '진행 중' %}selected{% endif %}>진행 중</option>
+            <option value="완료" {% if report.status == '완료' %}selected{% endif %}>완료</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>장애 발생일시</label>
+          <input type="date" id="error_start_date" name="error_start_date" value="{{ report.error_start_date.strftime('%Y-%m-%d') if report.error_start_date }}">
+          <input type="time" id="start_time" name="start_time" value="{{ report.error_start_date.strftime('%H:%M') if report.error_start_date }}">
+        </div>
+        <div class="form-row">
+          <label>장애 종료일시</label>
+          <input type="date" id="error_end_date" name="error_end_date" value="{{ report.error_end_date.strftime('%Y-%m-%d') if report.error_end_date }}">
+          <input type="time" id="end_time" name="end_time" value="{{ report.error_end_date.strftime('%H:%M') if report.error_end_date }}">
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>장애 상세</h2>
+        <div class="form-row">
+          <label>고객사</label><input type="text" name="client_name" value="{{ report.client_name }}">
+          <label>시스템명</label><input type="text" name="system_name" value="{{ report.system_name }}">
+        </div>
+        <div class="form-row">
+          <label>대상 환경</label><input type="text" name="target_env" value="{{ report.target_env }}">
+          <label>장애 대상</label><input type="text" name="target_component" value="{{ report.target_component }}">
+        </div>
+        <div class="form-row">
+          <label>고객 영향</label><textarea name="customer_impact">{{ report.customer_impact }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>장애 내용</label><textarea name="error_info">{{ report.error_info }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>장애 원인</label><textarea name="error_reason">{{ report.error_reason }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>조치 내용</label><textarea name="action_taken">{{ report.action_taken }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>비고</label><textarea name="etc">{{ report.etc }}</textarea>
+        </div>
+      </div>
 
       {% elif report_type == "log" %}
-      <!-- 일지 리포트 수정폼 (비슷하게 구성) -->
-      (→ 이거 곧 이어서 줄게)
+      <div class="section">
+        <h2>기본 정보</h2>
+        <div class="form-row">
+          <label>담당자</label><input type="text" name="manager" value="{{ report.manager }}">
+          <label>상태</label>
+          <select name="status">
+            <option value="대기" {% if report.status == '대기' %}selected{% endif %}>대기</option>
+            <option value="진행 중" {% if report.status == '진행 중' %}selected{% endif %}>진행 중</option>
+            <option value="완료" {% if report.status == '완료' %}selected{% endif %}>완료</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label>일자</label>
+          <input type="date" id="log_date" name="log_date" value="{{ report.log_date.strftime('%Y-%m-%d') if report.log_date }}">
+          <input type="time" id="log_time" name="log_time" value="{{ report.log_date.strftime('%H:%M') if report.log_date }}">
+        </div>
+        <div class="form-row">
+          <label>완료일시</label>
+          <input type="date" id="completed_date" name="completed_date" value="{{ report.completed_date.strftime('%Y-%m-%d') if report.completed_date }}">
+          <input type="time" id="completed_time" name="completed_time" value="{{ report.completed_date.strftime('%H:%M') if report.completed_date }}">
+        </div>
+      </div>
 
+      <div class="section">
+        <h2>내용</h2>
+        <div class="form-row">
+          <label>고객사</label><input type="text" name="client_name" value="{{ report.client_name }}">
+          <label>시스템명</label><input type="text" name="system_name" value="{{ report.system_name }}">
+        </div>
+        <div class="form-row">
+          <label>대상 환경</label><input type="text" name="target_env" value="{{ report.target_env }}">
+          <label>유형</label><input type="text" name="log_type" value="{{ report.log_type }}">
+        </div>
+        <div class="form-row">
+          <label>내용</label><textarea name="content">{{ report.content }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>조치</label><textarea name="action">{{ report.action }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>요약</label><textarea name="summary">{{ report.summary }}</textarea>
+        </div>
+        <div class="form-row">
+          <label>비고</label><textarea name="etc">{{ report.etc }}</textarea>
+        </div>
+      </div>
       {% endif %}
 
       <div class="button-group">
         <button type="submit">수정 완료</button>
         <button type="button" onclick="window.history.back()">취소</button>
       </div>
-
     </form>
-
   </div>
+
+  <script>
+    function validateForm() {
+      const type = "{{ report_type }}";
+
+      function getDateTime(id_date, id_time) {
+        const date = document.getElementById(id_date)?.value;
+        const time = document.getElementById(id_time)?.value;
+        return date && time ? new Date(date + 'T' + time) : null;
+      }
+
+      if (type === "msp") {
+        const req = getDateTime("request_date", "request_time");
+        const comp = getDateTime("completed_date", "completed_time");
+        if (req && comp && comp < req) {
+          alert("완료일자는 요청일자보다 이후여야 합니다.");
+          return false;
+        }
+      } else if (type === "error") {
+        const start = getDateTime("error_start_date", "start_time");
+        const end = getDateTime("error_end_date", "end_time");
+        if (start && end && end < start) {
+          alert("장애 종료일자는 장애 발생일자보다 이후여야 합니다.");
+          return false;
+        }
+      } else if (type === "log") {
+        const log = getDateTime("log_date", "log_time");
+        const comp = getDateTime("completed_date", "completed_time");
+        if (log && comp && comp < log) {
+          alert("완료일자는 일자보다 이후여야 합니다.");
+          return false;
+        }
+      }
+
+      return true;
+    }
+  </script>
 </body>
 </html>

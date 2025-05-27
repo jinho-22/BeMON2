@@ -9,7 +9,7 @@
   {% include 'layout/header.html' %}
   <div class="container">
     <h1>장애 리포트 등록</h1>
-    <form method="post" action="/error/submit">
+    <form method="post" action="/error/submit" onsubmit="return validateForm()">
       <div class="section">
         <h2>기본 정보</h2>
         <div class="form-row">
@@ -86,5 +86,25 @@
       </div>
     </form>
   </div>
+
+  <script>
+    function validateForm() {
+      const startDate = document.querySelector('input[name="error_start_date"]').value;
+      const startTime = document.querySelector('input[name="start_time"]').value;
+      const endDate = document.querySelector('input[name="error_end_date"]').value;
+      const endTime = document.querySelector('input[name="end_time"]').value;
+
+      if (startDate && startTime && endDate && endTime) {
+        const start = new Date(`${startDate}T${startTime}`);
+        const end = new Date(`${endDate}T${endTime}`);
+        if (end < start) {
+          alert("복구일자는 장애일자보다 이후여야 합니다.");
+          return false;
+        }
+      }
+
+      return true;
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>기업별 통계 목록</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  {% include 'layout/header.html' %}
+  <main class="container mx-auto px-4 py-6">
+    <h1 class="text-2xl font-bold mb-6">기업별 통계</h1>
+    <ul class="list-disc pl-6 space-y-2">
+      {% for client in clients %}
+        <li>
+          <a href="/admin/stats/client/{{ client }}" class="text-blue-600 hover:underline">{{ client }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </main>
+</body>
+</html>
