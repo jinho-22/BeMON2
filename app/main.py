@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, text, extract, asc, desc
 
 # DB 모델
-from database import get_db
-from models.models import Report, ErrorReport, MspReport, LogReport, User
+from app.database import get_db
+from app.models.models import Report, ErrorReport, MspReport, LogReport, User
 
 # 유틸리티
 from datetime import datetime, timedelta
@@ -47,14 +47,14 @@ import os  # 필요시 파일 처리용
 
 
 router = APIRouter()
-templates = Jinja2Templates(directory="/templates")
+templates = Jinja2Templates(directory="app/templates")
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecret123")
 
 
-app.mount("/static", StaticFiles(directory="/static"), name="static")
-templates = Jinja2Templates(directory="/templates")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
 app.include_router(router)
 
 @app.get("/", response_class=HTMLResponse)
