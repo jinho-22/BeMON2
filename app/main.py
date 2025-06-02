@@ -163,7 +163,7 @@ async def register(
 def report_detail_page(request: Request, report_id: int, db: Session = Depends(get_db)):
     report_entry = db.query(Report).filter(Report.report_id == report_id).first()
     if not report_entry:
-        raise HTTPException(status_code=404, detail="Report not found")
+        raise HTTPException(status_code=404, detail="존재하지 않는 리포트ID입니다.")
 
     report_type = report_entry.report_type
     if report_type == "msp":
@@ -824,6 +824,7 @@ def report_list(
         query = query.filter(
             MspReport.request_date.between(start_date + " 00:00:00", end_date + " 23:59:59")
         )
+        
 
     # ✅ 통합검색: 여러 필드에 OR 조건으로 적용
     from sqlalchemy import or_
@@ -1204,7 +1205,7 @@ async def change_password(
     user.password = new_password
     db.commit()
 
-    return RedirectResponse(url="/myinfo", status_code=303)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/admin/stats", response_class=HTMLResponse)
