@@ -19,8 +19,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func, text, extract, asc, desc
 
 # DB 모델
-from app.database import get_db
-from app.models.models import Report, ErrorReport, MspReport, LogReport, User
+from database import get_db
+from models.models import Report, ErrorReport, MspReport, LogReport, User
 
 # 유틸리티
 from datetime import datetime, timedelta
