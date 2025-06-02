@@ -47,14 +47,14 @@ import os  # 필요시 파일 처리용
 
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+templates = Jinja2Templates(directory="/templates")
 
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="supersecret123")
 
 
-app.mount("/static", StaticFiles(directory="app/static"), name="static")
-templates = Jinja2Templates(directory="app/templates")
+app.mount("/static", StaticFiles(directory="/static"), name="static")
+templates = Jinja2Templates(directory="/templates")
 app.include_router(router)
 
 @app.get("/", response_class=HTMLResponse)
